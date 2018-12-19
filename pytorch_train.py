@@ -24,44 +24,8 @@ from PIL import Image
 import torch.nn.functional as F
 from collections import OrderedDict
 from torch.nn import init
+from densenet import Densenet_
 os.environ['CUDA_VISIBLE_DEVICES'] = '1'
-
-class Densenet_(nn.Module):
-    def __init__(self, cls_num):
-        super(Densenet_, self).__init__()
-        Backstone = models.densenet201(pretrained=True)
-        num_ftrs = Backstone.features
-        self.BackstoneDim = 1920
-        self.featureDim = 1280
-        add_block = nn.Sequential(OrderedDict([
-            ('fc1',nn.Linear(self.BackstoneDim, self.featureDim )),
-            ('fc_relu', nn.LeakyReLU(inplace=True)),
-            ('classifier', nn.Linear(self.featureDim, cls_num, bias=True))]))
-        self.Backstone = Backstone.features
-        self.add_block = add_block
-        init.xavier_uniform(self.add_block.fc1.weight)
-        init.constant(self.add_block.fc1.bias, 1.0)
-        init.normal(self.add_block.classifier.weight, mean=0, std=0.001)
-        init.constant(self.add_block.fc1.bias, 1.0)
-        #init.xavier_uniform(self.add_block.classifier.weight)
-        #init.constant(self.add_block.fc1.bias, 1.0)
-        #init.normal(self.add_block.fc1.weight, mean=0, std=0.01)
-        #init.constant(self.add_block.fc1.bias, 0.0)
-        #init.normal(self.add_block.classifier.weight, mean=0, std=0.001)
-        #init.constant(self.add_block.fc1.bias, 0.0)
-        #init.kaiming_uniform_(self.add_block.fc1.weight)
-        #init.constant(self.add_block.fc1.bias, 0.2)
-        #init.kaiming_uniform_(self.add_block.classifier.weight)
-        #init.constant(self.add_block.classifier.bias, 1.0)
-
-    def forward(self, input):
-        x = self.Backstone(input)
-        H = x.shape[2]
-        W = x.shape[3]
-        x_relu = F.relu(x, inplace=True)
-        x_relu = F.avg_pool2d(x_relu, (H, W), stride=1).view(x.size(0), -1)
-        x = self.add_block(x_relu)
-        return x
 
 class FocalLoss(nn.Module):
     def __init__(self, class_num, alpha=None, gamma=2, size_average=True):
@@ -249,10 +213,10 @@ model_ft = Densenet_(num)
 
 #for param in model_ft.parameters():
 #    param.requires_grad = False
-for param in model_ft.Backstone.parameters():
-    param.requires_grad = False
-for param in model_ft.add_block.parameters():
-    param.requires_grad = True
+#for param in model_ft.Backstone.parameters():
+#    param.requires_grad = False
+#for param in model_ft.add_block.parameters():
+#    param.requires_grad = True
 #print(model_ft)
 
 model_ft = model_ft.to(device)
@@ -266,14 +230,14 @@ criterion = nn.CrossEntropyLoss()
 ignored_params = list(map(id, model_ft.add_block.parameters()))
 base_params = filter(lambda p: id(p) not in ignored_params, model_ft.parameters())
 optimizer_conv = optim.SGD([
-                {'params': base_params, 'lr': 0.01},
-                {'params': model_ft.add_block.parameters(), 'lr': 0.01},
-                ], momentum=0.9, weight_decay=4e-3)
+                {'params': base_params, 'lr': 0.001},
+                {'params': model_ft.add_block.parameters(), 'lr': 0.06},
+                ], momentum=0.9, weight_decay=2e-3)
 
 # Decay LR by a factor of 0.1 every 7 epochs
-exp_lr_scheduler = lr_scheduler.StepLR(optimizer_conv, step_size=40, gamma=0.1)
+exp_lr_scheduler = lr_scheduler.StepLR(optimizer_conv, step_size=8, gamma=0.1)
 exp_lr_scheduler.step()
-model_ft = train_model(model_ft, criterion, optimizer_conv, exp_lr_scheduler, num_epochs=45)
+model_ft = train_model(model_ft, criterion, optimizer_conv, exp_lr_scheduler, num_epochs=8)
 validation(model_ft)
 torch.save(model_ft, 'models/model-back-1.pt')
 
@@ -292,11 +256,11 @@ model_ft = model_ft.to(device)
 optimizer_ft = optim.SGD([
                 {'params': base_params, 'lr': 0.001},
                 {'params': model_ft.add_block.parameters(), 'lr': 0.001},
-                ], momentum=0.9, weight_decay=4e-4, nesterov=False)
+                ], momentum=0.9, weight_decay=2e-4, nesterov=False)
 
 # Decay LR by a factor of 0.1 every 7 epochs
-exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=40, gamma=0.1)
+exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=9, gamma=0.1)
 exp_lr_scheduler.step()
-model_ft = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler, num_epochs=120)
+model_ft = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler, num_epochs=27)
 validation(model_ft)
 torch.save(model_ft, 'models/model-back-2.pt')
