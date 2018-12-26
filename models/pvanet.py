@@ -55,7 +55,7 @@ class mCReLU_base(nn.Module):
         self.act = F.relu
 
         # Trainable params
-        self.conv3x3 = nn.Conv2d(n_in, n_out, kernelsize, stride=stride, padding=kernelsize/2)
+        self.conv3x3 = nn.Conv2d(n_in, n_out, kernelsize, stride=stride, padding=int(kernelsize/2))
         self.bn = nn.BatchNorm2d(n_out * 2)
 
     def forward(self, x):
@@ -86,7 +86,7 @@ class mCReLU_residual(nn.Module):
 
         # Trainable params
         self.reduce = nn.Conv2d(n_in, n_red, 1, stride=in_stride)
-        self.conv3x3 = nn.Conv2d(n_red, n_3x3, kernelsize, padding=kernelsize/2)
+        self.conv3x3 = nn.Conv2d(n_red, n_3x3, kernelsize, padding=int(kernelsize/2))
         self.bn = nn.BatchNorm2d(n_3x3 * 2)
         self.expand = nn.Conv2d(n_3x3 * 2, n_out, 1)
 

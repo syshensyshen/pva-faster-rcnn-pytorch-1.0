@@ -14,56 +14,26 @@ import torch.nn as nn
 import numpy as np
 import math
 import yaml
-from model.utils.config import cfg
+from models.config import cfg
 from lib.rpn.generate_anchors import generate_anchors
-from .bbox_transform import bbox_transform_inv, clip_boxes, clip_boxes_batch
-# from model.nms.nms_wrapper import nms
-from model.roi_layers import nms
+from lib.rpn.bbox_transform import clip_boxes, clip_boxes_batch
+from lib.rpn.nms import nms
 import pdb
 
 DEBUG = False
 
-class _ProposalLayer(nn.Module):
-    """
-    Outputs object detection proposals by applying estimated bounding-box
-    transformations to a set of regular boxes (called "anchors").
-    """
+class ProposalLayer(nn.Module):
 
     def __init__(self, feat_stride, scales, ratios):
-        super(_ProposalLayer, self).__init__()
+        super(ProposalLayer, self).__init__()
 
         self._feat_stride = feat_stride
         self._anchors = torch.from_numpy(generate_anchors(scales=np.array(scales),
             ratios=np.array(ratios))).float()
         self._num_anchors = self._anchors.size(0)
 
-        # rois blob: holds R regions of interest, each is a 5-tuple
-        # (n, x1, y1, x2, y2) specifying an image batch index n and a
-        # rectangle (x1, y1, x2, y2)
-        # top[0].reshape(1, 5)
-        #
-        # # scores blob: holds scores for R regions of interest
-        # if len(top) > 1:
-        #     top[1].reshape(1, 1, 1, 1)
-
     def forward(self, input):
 
-        # Algorithm:
-        #
-        # for each (H, W) location i
-        #   generate A anchor boxes centered on cell i
-        #   apply predicted bbox deltas at cell i to each of the A anchors
-        # clip predicted boxes to image
-        # remove predicted boxes with either height or width < threshold
-        # sort all (proposal, score) pairs by score from highest to lowest
-        # take top pre_nms_topN proposals before NMS
-        # apply NMS with threshold 0.7 to remaining proposals
-        # take after_nms_topN proposals after NMS
-        # return the top proposals (-> RoIs top, scores top)
-
-
-        # the first set of _num_anchors channels are bg probs
-        # the second set are the fg probs
         scores = input[0][:, self._num_anchors:, :, :]
         bbox_deltas = input[1]
         im_info = input[2]

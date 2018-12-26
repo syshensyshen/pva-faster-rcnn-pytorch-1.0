@@ -16,7 +16,8 @@ import numpy.random as npr
 
 from model.utils.config import cfg
 from lib.rpn.generate_anchors import generate_anchors
-from lib.rpn.bbox_transform import clip_boxes, bbox_overlaps_batch, bbox_transform_batch
+from lib.rpn.bbox_transform import clip_boxes, clip_boxes_batch
+from lib.rpn.bbox_transform import bbox_transform_batch
 
 import pdb
 
@@ -28,18 +29,19 @@ except NameError:
     long = int  # Python 3
 
 
-class _AnchorTargetLayer(nn.Module):
+class AnchorTargetLayer(nn.Module):
     """
         Assign anchors to ground-truth targets. Produces anchor classification
         labels and bounding-box regression targets.
     """
     def __init__(self, feat_stride, scales, ratios):
-        super(_AnchorTargetLayer, self).__init__()
+        super(AnchorTargetLayer, self).__init__()
 
         self._feat_stride = feat_stride
         self._scales = scales
         anchor_scales = scales
-        self._anchors = torch.from_numpy(generate_anchors(scales=np.array(anchor_scales), ratios=np.array(ratios))).float()
+        self._anchors = torch.from_numpy(generate_anchors(scales=np.array(anchor_scales),\
+                                                          ratios=np.array(ratios))).float()
         self._num_anchors = self._anchors.size(0)
 
         # allow boxes to sit over the edge by a small amount
