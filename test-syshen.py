@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 from models.features import pvaHyper
 from models.features import liteHyper
-from models.lite import PVALiteNet
+from models.lite import PVALiteFeat
 import torch
 from torchsummary import summary
 import cv2
@@ -54,13 +54,14 @@ print(banchors.shape)
 
 from lib.datasets.pascal_voc import load_pascal_annotation
 from lib.datasets.pascal_voc import _get_image_blob
-xml_context = load_pascal_annotation(r'E:\VOCdevkit\VOC2007\Annotations\000001.xml')
-print(xml_context['boxes'].shape[0])
-test_gt = np.zeros((2, 4, 5), dtype=np.float32)
-print(test_gt[0,0:2,0:3])
-img = cv2.imread(r"E:\VOCdevkit\VOC2007\JPEGImages\000001.jpg")
-print(img.shape)
-blob, im_scale = _get_image_blob(img, np.array([[[102.9801, 115.9465, 122.7717]]]), 512, 1440, 32)
-print(blob.shape, im_scale)
-cv2.imshow('img', img)
-cv2.waitKey(0)
+from lib.datasets.pascal_voc import prepareBatchData
+root_dir = r'E:\VOCdevkit\VOC2007\data'
+xmllist = []
+xmllist.append('000001.xml')
+xmllist.append('000002.xml')
+xmllist.append('000003.xml')
+xmllist.append('000004.xml')
+gt_boxes, im_blobs, im_scales = prepareBatchData(root_dir, 4, xmllist)
+print(gt_boxes.shape)
+print(im_blobs.shape)
+print(im_scales)

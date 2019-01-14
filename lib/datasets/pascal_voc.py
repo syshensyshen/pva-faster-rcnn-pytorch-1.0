@@ -122,30 +122,61 @@ def _get_image_blob(im, PIXEL_MEANS, target_size, MAX_SIZE, SCALE_MULTIPLE_OF):
 
     return blob, im_scale 
 
-def prepareBatchData(batch_size, xmllist):
+def get_target_size(target_size, im, multiple, max_size):
+    im_shape = im.shape
+    im_size_min = np.min(im_shape[0:2])
+    im_size_max = np.max(im_shape[0:2])
+    if len(im_shape) > 2:
+        channles = im_shape[2]
+    else:
+        channles = 1
+    im_scale = float(target_size) / float(im_size_min)
+    # Prevent the biggest axis from being more than MAX_SIZE
+    if np.round(im_scale * im_size_max) > max_size:
+        im_scale = float(max_size) / float(im_size_max)
+    width = np.floor(im.shape[1] * im_scale / multiple) * multiple 
+    height = np.floor(im.shape[0] * im_scale / multiple) * multiple 
+    return int(width), int(height), channles
+
+def prepareBatchData(root_path, batch_size, xmllist):
     #for ix, xml_path in enumerate(xmllist):
     ims = []
     boxes = []
     labels = []
     max_len = 0
     for xml_path in xmllist:
-        xml_context = load_pascal_annotation(xml_path)
+        xml_context = load_pascal_annotation(root_path + '/' + xml_path)
         if max_len < xml_context['boxes'].shape[0]:
             max_len = xml_context['boxes'].shape[0]
-        ims.append(cv2.imread(xml_context['img_name']))
+        ims.append(cv2.imread(root_path + '/' + xml_context['img_name']))
         boxes.append(xml_context['boxes'])
         labels.append(xml_context['gt_classes'])
-    gt_boxes = np.zeros((batch_size, max_len, 5), dtype=np.float32)
-    im_blobs = np.zeros((batch_size, ims[0].shape[2], ims[0].shape[0], ims[0].shape[1]), dtype = np.float32)
-    im_scales = np.zeros((batch_size, 3), dtype = np.float32)
-    target_size = SCALES[random.randint(0, len(SCALES))]
-    for ix, gt in boxes:
+    gt_boxes = np.zeros((batch_size, max_len, 5), dtype=np.float32)    
+    im_scales = np.zeros((batch_size, 4), dtype = np.float32)
+    target_size = SCALES[random.randint(0, len(SCALES)-1)]
+    width, height, channles = get_target_size(target_size, ims[random.randint(0, len(ims)-1)], SCALE_MULTIPLE_OF, MAX_SIZE)
+    im_blobs = np.zeros((batch_size, channles, height, width), dtype = np.float32)
+    for ix, gt in enumerate(boxes):
+        #print(type(ix), ix, gt)
         len_t = gt.shape[0]
-        im_blobs[ix, :, :, :], im_scale = _get_image_blob(ims[ix], PIXEL_MEANS, target_size, MAX_SIZE, SCALE_MULTIPLE_OF)
-        gt_boxes[ix, 0:len_t, 0:4] = gt * im_scale[0]
-        gt_boxes[ix, 0:len_t, 4:5] = labels[ix]
+        im_scale_x = width / float(ims[ix].shape[1])
+        im_scale_y = height / float(ims[ix].shape[0])
+        im_scale = np.array([im_scale_x, im_scale_y])
+        im = ims[ix] - PIXEL_MEANS
+        im = cv2.resize(im, None, None, fx=im_scale_x, fy=im_scale_y,
+                    interpolation=cv2.INTER_LINEAR)
+        im_blobs[ix, :, :, :] = im_list_to_blob(im)
+        #im_blobs[ix, :, :, :], im_scale = _get_image_blob(ims[ix], PIXEL_MEANS, target_size, MAX_SIZE, SCALE_MULTIPLE_OF)
+        #gt_boxes[ix, 0:len_t, 0:4] = gt * im_scale[0]
+        gt_boxes[ix, 0:len_t, 0] = gt[:, 0] * im_scale[0]
+        gt_boxes[ix, 0:len_t, 1] = gt[:, 1] * im_scale[1]
+        gt_boxes[ix, 0:len_t, 2] = gt[:, 2] * im_scale[0]
+        gt_boxes[ix, 0:len_t, 3] = gt[:, 3] * im_scale[1]   
+        #print(gt_boxes[ix, 0:len_t, 4:5].shape, labels[ix].shape)
+        #gt_boxes[ix, 0:len_t, 4:5] = labels[ix]
+        gt_boxes[ix, 0:len_t, 4:5] = labels[ix].reshape(len_t, 1)
         im_scales[ix,:] = np.array(
-            [np.hstack((im_blobs[ix, :, :, :].shape[2], im_blobs[ix, :, :, :].shape[3], im_scales[0]))],
+            [np.hstack((height, width, im_scale[0], im_scale[1]))],
             dtype=np.float32)
     
     return gt_boxes, im_blobs, im_scales

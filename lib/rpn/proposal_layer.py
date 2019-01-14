@@ -80,7 +80,7 @@ class ProposalLayer(nn.Module):
         # proposals = clip_boxes_batch(proposals, im_info, batch_size)
 
         # assign the score to 0 if it's non keep.
-        # keep = self._filter_boxes(proposals, min_size * im_info[:, 2])
+        keep = self._filter_boxes(proposals, min_size, im_info, batch_size)
 
         # trim keep index to make it euqal over batch
         # keep_idx = torch.cat(tuple(keep_idx), 0)
@@ -137,9 +137,11 @@ class ProposalLayer(nn.Module):
         """Reshaping happens during the call to forward."""
         pass
 
-    def _filter_boxes(self, boxes, min_size):
+    def _filter_boxes(self, boxes, min_size, im_info, batch_size):
         """Remove all boxes with any side smaller than min_size."""
-        ws = boxes[:, :, 2] - boxes[:, :, 0] + 1
-        hs = boxes[:, :, 3] - boxes[:, :, 1] + 1
-        keep = ((ws >= min_size.view(-1,1).expand_as(ws)) & (hs >= min_size.view(-1,1).expand_as(hs)))
+        for i in range(batch_size):
+            each_min_size = min_size * im_info[i, :2]
+            ws = boxes[i, :, 2] - boxes[i, :, 0] + 1
+            hs = boxes[i, :, 3] - boxes[i, :, 1] + 1
+            keep = ((ws >= each_min_size.view(-1,1).expand_as(ws)) & (hs >= each_min_size.view(-1,1).expand_as(hs)))
         return keep
