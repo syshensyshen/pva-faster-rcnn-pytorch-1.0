@@ -1,26 +1,27 @@
 from __future__ import absolute_import
-from models.features import pvaHyper
-from models.features import liteHyper
-from models.lite import PVALiteFeat
 import torch
 from torchsummary import summary
 import cv2
 import numpy as np
-'''
+from models.features import pvaHyper
+from models.features import liteHyper
+from models.lite import PVALiteFeat
+from lib.rpn.rpn_regression import rpn_regression
+
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-#model = liteHyper().to(device)
-#model = pvaHyper().to(device)
+litehyper = liteHyper().to(device)
+pvahyper = pvaHyper().to(device)
 img_size = 192
 num_classes = 1000
 batch_size = 12
-model = PVALiteNet(inputsize=img_size, num_classes = num_classes).to(device)
-input = torch.empty(batch_size, 3, img_size, img_size, dtype=torch.float32).to(device)
-features = model.forward(input)
-print(features)
-print(features.shape)
+#model = PVALiteNet(inputsize=img_size, num_classes = num_classes).to(device)
+#input = torch.empty(batch_size, 3, img_size, img_size, dtype=torch.float32).to(device)
+#features = model.forward(input)
+#print(features)
+#print(features.shape)
 #summary(model, (3, 320, 320))
 #print(model)
-'''
+
 '''
 _feat_stride = 16
 width = 40
@@ -62,6 +63,17 @@ xmllist.append('000002.xml')
 xmllist.append('000003.xml')
 xmllist.append('000004.xml')
 gt_boxes, im_blobs, im_scales = prepareBatchData(root_dir, 4, xmllist)
-print(gt_boxes.shape)
-print(im_blobs.shape)
-print(im_scales)
+gt_boxes = torch.from_numpy(gt_boxes) 
+im_blobs = torch.from_numpy(im_blobs)
+im_scales = torch.from_numpy(im_scales)
+features = litehyper.forward(im_blobs.to(device))
+print(features.shape)
+#inchannles = features.shape(1)
+rpn_regression = rpn_regression(544).to(device)
+base_feat, rpn_cls_prob, rpn_bbox_pred, rpn_loss_cls, rpn_loss_box = \
+rpn_regression.forward(features.to(device), im_scales.to(device), gt_boxes.to(device))
+print(base_feat.shape)
+print(rpn_cls_prob.shape)
+print(rpn_bbox_pred.shape)
+print(rpn_loss_cls)
+print(rpn_loss_box)

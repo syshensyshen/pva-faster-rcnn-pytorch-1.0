@@ -14,10 +14,11 @@ import torch.nn as nn
 import numpy as np
 import numpy.random as npr
 
-from model.utils.config import cfg
+from models.config import cfg
 from lib.rpn.generate_anchors import generate_anchors
 from lib.rpn.bbox_transform import clip_boxes, clip_boxes_batch
 from lib.rpn.bbox_transform import bbox_transform_batch
+from lib.rpn.bbox_transform import bbox_overlaps_batch
 
 import pdb
 
@@ -58,7 +59,7 @@ class AnchorTargetLayer(nn.Module):
         rpn_cls_score = input[0]
         gt_boxes = input[1]
         im_info = input[2]
-        num_boxes = input[3]
+        #num_boxes = input[3]
 
         # map of shape (..., H, W)
         height, width = rpn_cls_score.size(2), rpn_cls_score.size(3)
