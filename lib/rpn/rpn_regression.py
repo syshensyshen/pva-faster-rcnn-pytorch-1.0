@@ -16,15 +16,32 @@ import time
 
 class rpn_regression(nn.Module):
 
+     def _init_weights(self):
+        def normal_init(m, mean, stddev, truncated=False):
+            """
+            weight initalizer: truncated normal and random normal.
+            """
+            # x is a parameter
+            if truncated:
+                m.weight.data.normal_().fmod_(2).mul_(stddev).add_(mean) # not a perfect approximation
+            else:
+                m.weight.data.normal_(mean, stddev)
+                m.bias.data.zero_()
+
+        normal_init(self.rpn_conv1, 0, 0.01, cfg.TRAIN.TRUNCATED)
+        normal_init(self.rpn_cls_score, 0, 0.01, cfg.TRAIN.TRUNCATED)
+        normal_init(self.rpn_bbox_pred, 0, 0.01, cfg.TRAIN.TRUNCATED)
+
     def __init__(self, inchannels):
         super(rpn_regression, self).__init__()
         self.inchannels = inchannels
         self.anchor_scales = cfg.ANCHOR_SCALES
         self.anchor_ratios = cfg.ANCHOR_RATIOS
         self.feat_stride = cfg.FEAT_STRIDE[0]
-        self.convf_rpn = nn.Conv2d(self.inchannels, 128, 1, 1, 0, bias=True)
-        self.convf_2 = nn.Conv2d(self.inchannels, 384, 1, 1, 1, bias=True)
-        self.rpn_conv1 = nn.Conv2d(128, 384, 3, 1, 1, bias=True)
+        #self.convf_rpn = nn.Conv2d(self.inchannels, 128, 1, 1, 0, bias=True)
+        #self.convf_2 = nn.Conv2d(self.inchannels, 384, 1, 1, 1, bias=True)
+        #self.rpn_conv1 = nn.Conv2d(128, 384, 3, 1, 1, bias=True)
+        self.rpn_conv1 = nn.Conv2d(self.inchannels, 256, 3, 1, 1, bias=True)
         self.rpn_number = len(self.anchor_scales) * len(self.anchor_ratios)
         self.rpn_cls_score = nn.Conv2d(128, self.rpn_number << 1, 1, 1, 0, bias=True)
         self.rpn_bbox_pred = nn.Conv2d(512, self.rpn_number << 2, 1, 1, 0, bias=True)
@@ -46,11 +63,11 @@ class rpn_regression(nn.Module):
         return x
 
     def forward(self, base_feat, im_info, gt_boxes, num_boxes):
-        convf_rpn = F.relu(self.convf_rpn(base_feat))
-        F.relu(self.convf_2(base_feat))
-        convf_2 = self.rpn_conv1()
-        rpn_conv1 = F.relu(self.rpn_conv1(convf_rpn))
-        base_feat = convf_rpn + convf_2
+        #convf_rpn = F.relu(self.convf_rpn(base_feat))
+        #F.relu(self.convf_2(base_feat))
+        #convf_2 = self.rpn_conv1()
+        #rpn_conv1 = F.relu(self.rpn_conv1(convf_rpn))
+        #base_feat = convf_rpn + convf_2
         batch_size = base_feat.size(0)
         rpn_conv1 = F.relu(self.rpn_Conv(base_feat), inplace=True)
         rpn_cls_score = self.rpn_cls_score(rpn_conv1)

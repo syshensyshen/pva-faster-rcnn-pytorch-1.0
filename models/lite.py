@@ -5,6 +5,16 @@ import torch.nn.functional as F
 import numpy as np
 import math
 
+def initvars(modules):
+    # Copied from vision/torchvision/models/resnet.py
+    for m in modules:
+        if isinstance(m, nn.Conv2d):
+            n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+            m.weight.data.normal_(0, math.sqrt(2. / n))
+        elif isinstance(m, nn.BatchNorm2d):
+            m.weight.data.fill_(1)
+            m.bias.data.zero_()
+
 class ConvBn(nn.Module):
     def __init__(self, in_feature, out_feature, kernel_size, stride=1,
                  padding=0, dilation=1, groups=1, bias=True):

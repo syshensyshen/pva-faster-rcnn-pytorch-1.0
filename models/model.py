@@ -28,6 +28,19 @@ class network(nn.Module):
     '''
     author: syshen
     '''
+    def _init_weights(self):
+        def normal_init(m, mean, stddev, truncated=False):
+            """
+            weight initalizer: truncated normal and random normal.
+            """
+            # x is a parameter
+            if truncated:
+                m.weight.data.normal_().fmod_(2).mul_(stddev).add_(mean) # not a perfect approximation
+            else:
+                m.weight.data.normal_(mean, stddev)
+                m.bias.data.zero_()
+        normal_init(self.cls_inner, 0, 0.01, cfg.TRAIN.TRUNCATED)
+        normal_init(self.bbox_pred, 0, 0.001, cfg.TRAIN.TRUNCATED)
     def __init__(self, classes, pretrain=False, align=False):
         super(network, self).__init__()        
         self.classes = classes

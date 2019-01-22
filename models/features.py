@@ -5,11 +5,22 @@ from models.pvanet import PVANetFeat
 from models.lite import PVALiteFeat
 import torch.nn.functional as F
 
+def initvars(modules):
+    # Copied from vision/torchvision/models/resnet.py
+    for m in modules:
+        if isinstance(m, nn.Conv2d):
+            n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+            m.weight.data.normal_(0, math.sqrt(2. / n))
+        elif isinstance(m, nn.BatchNorm2d):
+            m.weight.data.fill_(1)
+            m.bias.data.zero_()
+
 class pvaHyper(PVANetFeat):
     '''
     '''
     def __init__(self):
         super(pvaHyper, self).__init__()
+        initvars(self.modules())
 
     def forward(self, input):
         x0 = self.conv1(input)
@@ -25,6 +36,7 @@ class pvaHyper(PVANetFeat):
 class liteHyper(PVALiteFeat):
     def __init__(self):
         super(liteHyper, self).__init__()
+        initvars(self.modules())
     def forward(self, input):
         x1 = self.conv1(input) # 1/2 feature
         x2 = self.conv2(x1) # 1/4 feature
