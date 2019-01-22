@@ -18,7 +18,6 @@ class rpn_regression(nn.Module):
 
     def __init__(self, inchannels):
         super(rpn_regression, self).__init__()
-
         self.inchannels = inchannels
         self.anchor_scales = cfg.ANCHOR_SCALES
         self.anchor_ratios = cfg.ANCHOR_RATIOS
@@ -57,7 +56,7 @@ class rpn_regression(nn.Module):
         rpn_cls_score = self.rpn_cls_score(rpn_conv1)
         rpn_cls_score_reshape = self.reshape(rpn_cls_score, 2)
         rpn_cls_prob_reshape = F.softmax(rpn_cls_score_reshape, 1)
-        rpn_cls_prob = self.reshape(rpn_cls_prob_reshape, self.nc_score_out)
+        rpn_cls_prob = self.reshape(rpn_cls_prob_reshape, self.rpn_number << 1)
         rpn_bbox_pred = self.rpn_bbox_pred(rpn_conv1)
         self.rpn_loss_cls = 0
         self.rpn_loss_box = 0
@@ -70,8 +69,8 @@ class rpn_regression(nn.Module):
             rpn_cls_score = torch.index_select(rpn_cls_score.view(-1,2), 0, rpn_keep)
             rpn_label = torch.index_select(rpn_label.view(-1), 0, rpn_keep.data)
             rpn_label = Variable(rpn_label.long())
-            rpn_loss_cls = F.cross_entropy(rpn_cls_score, rpn_label)
-            fg_cnt = torch.sum(rpn_label.data.ne(0))
+            self.rpn_loss_cls = F.cross_entropy(rpn_cls_score, rpn_label)
+            #fg_cnt = torch.sum(rpn_label.data.ne(0))
             rpn_bbox_targets, rpn_bbox_inside_weights, rpn_bbox_outside_weights = rpn_data[1:]
             rpn_bbox_inside_weights = Variable(rpn_bbox_inside_weights)
             rpn_bbox_outside_weights = Variable(rpn_bbox_outside_weights)
@@ -82,5 +81,5 @@ class rpn_regression(nn.Module):
                                                rpn_bbox_outside_weights, \
                                                sigma=3, dim=[1,2,3])
 
-        return base_feat, rpn_cls_score, rpn_bbox_pred, \
+        return base_feat, rpn_cls_prob, rpn_bbox_pred, \
                self.rpn_loss_cls, self.rpn_loss_box

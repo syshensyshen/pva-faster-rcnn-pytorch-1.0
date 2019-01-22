@@ -33,21 +33,21 @@ class network(nn.Module):
         self.classes = classes
         self.rpn_cls_loss = 0
         self.rpn_bbox_loss = 0
-        self.Backstone = pvaHyper()
+        self.Backstone = pvaHyper() # pva in_channles: 768 lite inchannels: 544
         self.features = self.Backstone
-        self.rpn_regression = rpn_regression()
+        self.rpn_regression = rpn_regression(768)
         self.proposallayer = ProposalLayer(cfg.FEAT_STRIDE[0], \
                                            cfg.ANCHOR_SCALES, cfg.ANCHOR_RATIOS)
-        self.proposaltargetlayer = ProposalTargetLayer()
+        self.proposaltargetlayer = ProposalTargetLayer(self.classes)
         self.roi_extraction = ROIAlignLayer()
         if not align:
             self.roi_extraction = ROIPoolingLayer()
         if pretrain:
-            model = torch.load(cfg.TRAIN.pretainmodel)
+            model = torch.load(cfg.TRAIN.PRETRAINEDMODEL)
             self.Backstone = copy.deepcopy(model.state_dict())
 
         self.regressionDim = 512
-        self.roi_size = 6
+        self.roi_pooling_size = 6
 
         self.Regression = nn.Sequential(OrderedDict([
             ('fc1',nn.Linear(self.regressionDim * self.roi_size * self.roi_size, self.regressionDim)),
@@ -67,32 +67,33 @@ class network(nn.Module):
         gt_boxes = gt_boxes.data
         num_boxes = num_boxes.data
         features = self.Backstone(im_data)
+        self.labels = None
+        self.bbox_targets = None
+        self.bbox_inside_weights = None
+        self.bbox_outside_weights = None
+        self.rois = None
+        self.rpn_loss_cls = 0
+        self.rpn_loss_bbox = 0
         base_feat, rpn_cls_score, rpn_bbox_pred, rpn_loss_cls, rpn_loss_bbox = \
             self.rpn_regression.forward(features, im_info, gt_boxes, num_boxes)
-        if training:
-            rois = self.proposallayer.forward(rpn_cls_score.data, \
-                                              rpn_bbox_pred.data, im_info)
-            rois_label, rois_batch, rois_target, bbox_inside_weights = \
-                self.proposaltargetlayer(rois, gt_boxes, num_boxes)
-            bbox_outside_weights = np.array(bbox_inside_weights > 0).astype(np.float32)
-            rois_label = Variable(rois_label.view(-1).long())
-            rois_target = Variable(rois_target.view(-1, rois_target.size(2)))
-            bbox_inside_weights = Variable(bbox_inside_weights.\
-                                           view(-1, bbox_inside_weights.size(2)))
-            bbox_outside_weights = Variable(bbox_outside_weights.\
-                                            view(-1, bbox_outside_weights.size(2)))
-        else:
-            rois_label = None
-            rois_target = None
-            rois_inside_ws = None
-            rois_outside_ws = None
-            rpn_loss_cls = 0
-            rpn_loss_bbox = 0
+        self.rois = self.proposallayer(rpn_cls_score.data, \
+            rpn_bbox_pred.data, im_info)
+        if training:           
+            self.labels, self.rois, self.bbox_targets, self.bbox_inside_weights = \
+                self.proposaltargetlayer(self.rois, gt_boxes, num_boxes)
+            self.bbox_outside_weights = np.array(self.bbox_inside_weights > 0).astype(np.float32)
+            self.rois_label = Variable(self.labels.view(-1).long())
+            self.bbox_targets = Variable(self.bbox_targets.view(-1, self.bbox_targets.size(2)))
+            self.bbox_inside_weights = Variable(self.bbox_inside_weights.\
+                                           view(-1, self.bbox_inside_weights.size(2)))
+            self.bbox_outside_weights = Variable(self.bbox_outside_weights.\
+                                            view(-1, self.bbox_outside_weights.size(2)))
+            
 
-        rois = Variable(rois)
+        self.rois = Variable(self.rois)
          # do roi pooling based on predicted rois
-        roi_feat = self.roi_extraction(base_feat, rois.view(-1, 5), \
-                                          self.roi_size, cfg.TRAIN.spatial_scale)
+        roi_feat = self.roi_extraction(base_feat, self.rois.view(-1, 5), \
+                                          self.roi_pooling_size, cfg.TRAIN.FEAT_STRIDE)
         inner_product = self.Regression(roi_feat)
         bbox_pred = self.bbox_pred(inner_product)
         cls_inner = self.cls_inner(inner_product)
@@ -103,10 +104,11 @@ class network(nn.Module):
 
         if training:
             loss_cls = nn.CrossEntropyLoss()
-            loss_bbox = smooth_l1_loss(bbox_pred, rois_target, bbox_inside_weights, \
-                                       bbox_outside_weights)
+            loss_bbox = smooth_l1_loss(bbox_pred, self.bbox_targets, self.bbox_inside_weights, \
+                                       self.bbox_outside_weights)
 
-        cls_prob = cls_prob.view(batch_size, rois.size(1), -1)
-        bbox_pred = bbox_pred.view(batch_size, rois.size(1), -1)
+        cls_prob = cls_prob.view(batch_size, self.rois.size(1), -1)
+        bbox_pred = bbox_pred.view(batch_size, self.rois.size(1), -1)
 
-        return rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_bbox, loss_cls, loss_bbox
+        return self.rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_bbox, loss_cls, loss_bbox
+

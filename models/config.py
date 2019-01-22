@@ -21,6 +21,8 @@ __C.TRAIN = edict()
 # Initial learning rate
 __C.TRAIN.LEARNING_RATE = 0.001
 
+# pretain model
+__C.TRAIN.PRETRAINEDMODEL = ''
 # Momentum
 __C.TRAIN.MOMENTUM = 0.9
 

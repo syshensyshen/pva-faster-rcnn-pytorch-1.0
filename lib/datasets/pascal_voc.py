@@ -15,13 +15,15 @@ MAX_SIZE = 1440
 
 
 #class_list = ('__background__', 'left', 'right', 'top','bottom', 'middle', 'back', 'label', 'lable')
-class_list = ('__background__', # always index 0
-                         'aeroplane', 'bicycle', 'bird', 'boat',
-                         'bottle', 'bus', 'car', 'cat', 'chair',
-                         'cow', 'diningtable', 'dog', 'horse',
-                         'motorbike', 'person', 'pottedplant',
-                         'sheep', 'sofa', 'train', 'tvmonitor')
-class_to_ind = dict(zip(class_list, range(0, len(class_list)-1)))
+#class_list = ('__background__', # always index 0
+#                         'aeroplane', 'bicycle', 'bird', 'boat',
+#                         'bottle', 'bus', 'car', 'cat', 'chair',
+#                         'cow', 'diningtable', 'dog', 'horse',
+#                         'motorbike', 'person', 'pottedplant',
+#                         'sheep', 'sofa', 'train', 'tvmonitor',
+#                         'rebar')
+class_list = ('__background__', 'HM', 'TT')
+class_to_ind = dict(zip(class_list, range(0, len(class_list))))
 
 def load_pascal_annotation(xml_path):
     if not os.path.isfile(xml_path):
@@ -32,7 +34,7 @@ def load_pascal_annotation(xml_path):
     num_objs = len(objs)
     boxes = np.zeros((num_objs, 4), dtype=np.uint16)
     gt_classes = np.zeros((num_objs), dtype=np.int32)
-    overlaps = np.zeros((num_objs, len(class_list)-1), dtype=np.float32)
+    overlaps = np.zeros((num_objs, len(class_list)), dtype=np.float32)
     # "Seg" area for pascal is just the box area
     seg_areas = np.zeros((num_objs), dtype=np.float32)
     
@@ -138,17 +140,28 @@ def get_target_size(target_size, im, multiple, max_size):
     height = np.floor(im.shape[0] * im_scale / multiple) * multiple 
     return int(width), int(height), channles
 
-def prepareBatchData(root_path, batch_size, xmllist):
+def check_file(path, name, postfix):
+    return os.path.exists(path + '/' + name.replace('.xml', postfix))
+
+def prepareBatchData(xml_path, img_path, batch_size, xmllist):
     #for ix, xml_path in enumerate(xmllist):
     ims = []
     boxes = []
     labels = []
     max_len = 0
-    for xml_path in xmllist:
-        xml_context = load_pascal_annotation(root_path + '/' + xml_path)
+    for xml in xmllist:
+        name = os.path.basename(xml)
+        xml_context = load_pascal_annotation(xml_path + '/' + name)
         if max_len < xml_context['boxes'].shape[0]:
             max_len = xml_context['boxes'].shape[0]
-        ims.append(cv2.imread(root_path + '/' + xml_context['img_name']))
+        postfix = ''
+        if check_file(img_path, name, '.jpg'):
+            postfix = '.jpg'
+        if check_file(img_path, name, '.bmp'):
+            postfix = '.bmp'
+        if check_file(img_path, name, '.png'):
+            postfix = '.png'
+        ims.append(cv2.imread(img_path + '/' + name.replace('.xml', postfix)))
         boxes.append(xml_context['boxes'])
         labels.append(xml_context['gt_classes'])
     gt_boxes = np.zeros((batch_size, max_len, 5), dtype=np.float32)    
@@ -157,7 +170,6 @@ def prepareBatchData(root_path, batch_size, xmllist):
     width, height, channles = get_target_size(target_size, ims[random.randint(0, len(ims)-1)], SCALE_MULTIPLE_OF, MAX_SIZE)
     im_blobs = np.zeros((batch_size, channles, height, width), dtype = np.float32)
     for ix, gt in enumerate(boxes):
-        #print(type(ix), ix, gt)
         len_t = gt.shape[0]
         im_scale_x = width / float(ims[ix].shape[1])
         im_scale_y = height / float(ims[ix].shape[0])
@@ -166,17 +178,13 @@ def prepareBatchData(root_path, batch_size, xmllist):
         im = cv2.resize(im, None, None, fx=im_scale_x, fy=im_scale_y,
                     interpolation=cv2.INTER_LINEAR)
         im_blobs[ix, :, :, :] = im_list_to_blob(im)
-        #im_blobs[ix, :, :, :], im_scale = _get_image_blob(ims[ix], PIXEL_MEANS, target_size, MAX_SIZE, SCALE_MULTIPLE_OF)
-        #gt_boxes[ix, 0:len_t, 0:4] = gt * im_scale[0]
         gt_boxes[ix, 0:len_t, 0] = gt[:, 0] * im_scale[0]
         gt_boxes[ix, 0:len_t, 1] = gt[:, 1] * im_scale[1]
         gt_boxes[ix, 0:len_t, 2] = gt[:, 2] * im_scale[0]
         gt_boxes[ix, 0:len_t, 3] = gt[:, 3] * im_scale[1]   
-        #print(gt_boxes[ix, 0:len_t, 4:5].shape, labels[ix].shape)
-        #gt_boxes[ix, 0:len_t, 4:5] = labels[ix]
         gt_boxes[ix, 0:len_t, 4:5] = labels[ix].reshape(len_t, 1)
         im_scales[ix,:] = np.array(
             [np.hstack((height, width, im_scale[0], im_scale[1]))],
             dtype=np.float32)
     
-    return gt_boxes, im_blobs, im_scales
+    return [gt_boxes, im_blobs, im_scales]

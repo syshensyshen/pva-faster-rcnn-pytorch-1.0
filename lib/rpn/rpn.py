@@ -4,10 +4,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 
-from model.utils.config import cfg
+from models.config import cfg
 from lib.rpn.proposal_layer import _ProposalLayer
 from lib.rpn.anchor_target_layer import _AnchorTargetLayer
-from model.utils.net_utils import _smooth_l1_loss
+from models.smoothl1loss import _smooth_l1_loss
 
 import numpy as np
 import math
@@ -16,10 +16,10 @@ import time
 
 class _RPN(nn.Module):
     """ region proposal network """
-    def __init__(self, din):
+    def __init__(self, dim):
         super(_RPN, self).__init__()
         
-        self.din = din  # get depth of input feature map, e.g., 512
+        self.dim = dim  # get depth of input feature map, e.g., 512
         self.anchor_scales = cfg.ANCHOR_SCALES
         self.anchor_ratios = cfg.ANCHOR_RATIOS
         self.feat_stride = cfg.FEAT_STRIDE[0]

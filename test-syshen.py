@@ -9,11 +9,10 @@ import numpy as np
 '''
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 #model = liteHyper().to(device)
-#model = pvaHyper().to(device)
+model = pvaHyper().to(device)
 img_size = 192
 num_classes = 1000
 batch_size = 12
-model = PVALiteNet(inputsize=img_size, num_classes = num_classes).to(device)
 input = torch.empty(batch_size, 3, img_size, img_size, dtype=torch.float32).to(device)
 features = model.forward(input)
 print(features)
@@ -21,6 +20,7 @@ print(features.shape)
 #summary(model, (3, 320, 320))
 #print(model)
 '''
+
 '''
 _feat_stride = 16
 width = 40
@@ -51,17 +51,21 @@ N = 9
 banchors = anchors.view(1, N, 4).expand(batch_size, N, 4).contiguous()
 print(banchors.shape)
 '''
-
+'''
 from lib.datasets.pascal_voc import load_pascal_annotation
 from lib.datasets.pascal_voc import _get_image_blob
 from lib.datasets.pascal_voc import prepareBatchData
-root_dir = r'E:\VOCdevkit\VOC2007\data'
+root_dir = r'G:\competition\steers\test'
 xmllist = []
-xmllist.append('000001.xml')
-xmllist.append('000002.xml')
-xmllist.append('000003.xml')
-xmllist.append('000004.xml')
+xmllist.append('0B061732.xml')
+xmllist.append('0BF77F48.xml')
+xmllist.append('0C006B5C.xml')
+xmllist.append('1C318FBA.xml')
 gt_boxes, im_blobs, im_scales = prepareBatchData(root_dir, 4, xmllist)
 print(gt_boxes.shape)
 print(im_blobs.shape)
 print(im_scales)
+'''
+
+list_1 = [0,1,2,3,4,5,6,7,8]
+print(list_1[0:4])
