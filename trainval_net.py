@@ -58,6 +58,7 @@ def main():
   scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=15, verbose=True,mode="max")
   loss_hist = collections.deque(maxlen=1024)
   for epoch in range(0, args.epochs):
+    loss_temp = 0
     for i in range(0, iters_per_epoch +1):
       start_iter = i * batch_szie
       end_iter = start_iter + batch_szie
@@ -74,6 +75,22 @@ def main():
       #print(im_scales.shape)
       rois, cls_prob, bbox_pred, rpn_loss_cls, \
       rpn_loss_bbox, loss_cls, loss_bbox = model(im_blobs, im_scales, gt_boxes)
+
+      loss = rpn_loss_cls.mean() + rpn_loss_bbox.mean() \
+           + loss_cls.mean() + loss_bbox.mean()
+      loss_temp += loss.item()
+      optimizer.zero_grad()
+      loss.backward()
+      optimizer.step()
+      if i % args.disp_interval == 0:
+        if i > 0:
+          loss_temp /= (args.disp_interval + 1)      
+
+      print("[epoch %2d][iter %4d/%4d] loss: %.4f, lr: %.2e" \
+                                % (epoch, step, iters_per_epoch, loss_temp, lr))
+      print("\t\t\tfg/bg=(%d/%d), time cost: %f" % (fg_cnt, bg_cnt, end-start))
+      print("\t\t\trpn_cls: %.4f, rpn_box: %.4f, rcnn_cls: %.4f, rcnn_box %.4f" \
+                      % (loss_rpn_cls, loss_rpn_box, loss_rcnn_cls, loss_rcnn_box))
 
 if __name__ == "__main__":
   main()
