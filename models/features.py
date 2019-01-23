@@ -1,9 +1,9 @@
-
 import torch
 import torch.nn as nn
 from models.pvanet import PVANetFeat
 from models.lite import PVALiteFeat
 import torch.nn.functional as F
+import math
 
 def initvars(modules):
     # Copied from vision/torchvision/models/resnet.py

@@ -14,7 +14,7 @@ import torchvision.transforms as transforms
 from lib.datasets.pascal_voc import prepareBatchData
 import os
 from models.model import network
-from model.config import cfg
+from models.config import cfg
 os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
 def parse_args():
@@ -56,7 +56,6 @@ def main():
   model = torch.nn.DataParallel(model).cuda()
   optimizer = torch.optim.SGD(model.parameters(), lr=1e-4, momentum=cfg.TRAIN.MOMENTUM)
   scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=15, verbose=True,mode="max")
-  loss_hist = collections.deque(maxlen=1024)
   for epoch in range(0, args.epochs):
     loss_temp = 0
     for i in range(0, iters_per_epoch +1):

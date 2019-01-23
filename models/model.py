@@ -17,8 +17,8 @@ import numpy as np
 from models.config import cfg
 from models.features import pvaHyper
 from lib.rpn.rpn_regression import rpn_regression
-from lib.rpn.roi_align_layer import ROIAlignLayer
-from lib.rpn.roi_pooling_layer import ROIPoolingLayer
+from lib.roi_layers.roi_align_layer import ROIAlignLayer
+from lib.roi_layers.roi_pooling_layer import ROIPoolingLayer
 from lib.rpn.anchor_target_layer import AnchorTargetLayer
 from lib.rpn.proposal_layer import ProposalLayer
 from lib.rpn.proposal_target_layer import ProposalTargetLayer
@@ -52,27 +52,27 @@ class network(nn.Module):
         self.proposallayer = ProposalLayer(cfg.FEAT_STRIDE[0], \
                                            cfg.ANCHOR_SCALES, cfg.ANCHOR_RATIOS)
         self.proposaltargetlayer = ProposalTargetLayer(self.classes)
-        self.roi_extraction = ROIAlignLayer()
+        self.roi_extraction = ROIPoolingLayer((cfg.POOLING_SIZE, cfg.POOLING_SIZE), 1.0/16.0)
         if not align:
-            self.roi_extraction = ROIPoolingLayer()
+            self.roi_extraction = ROIAlignLayer((cfg.POOLING_SIZE, cfg.POOLING_SIZE), 1.0/16.0)
         if pretrain:
             model = torch.load(cfg.TRAIN.PRETRAINEDMODEL)
             self.Backstone = copy.deepcopy(model.state_dict())
 
         self.regressionDim = 512
-        self.roi_pooling_size = 6
+        #self.roi_pooling_size = cfg.POOLING_SIZE
 
         self.Regression = nn.Sequential(OrderedDict([
-            ('fc1',nn.Linear(self.regressionDim * self.roi_size * self.roi_size, self.regressionDim)),
+            ('fc1',nn.Linear(self.regressionDim * cfg.POOLING_SIZE * cfg.POOLING_SIZE, self.regressionDim)),
             ('fc_relu', nn.LeakyReLU(inplace=True)),
             ('fc2', nn.Linear(self.regressionDim, self.regressionDim, bias=True)),
             ('fc2_relu', nn.LeakyReLU(inplace=True))]))
 
         self.cls_inner = nn.Sequential(OrderedDict([
-            ('fc1',nn.Linear(self.regressionDim, self.n_classes))]))
+            ('fc1',nn.Linear(self.regressionDim, self.classes))]))
 
         self.bbox_pred = nn.Sequential(OrderedDict([
-            ('fc1',nn.Linear(self.regressionDim, self.n_classes * 4))]))
+            ('fc1',nn.Linear(self.regressionDim, self.classes * 4))]))
 
     def forward(self, base_feat, im_data, im_info, gt_boxes, num_boxes, training=False):
         batch_size = im_data.size(0)
@@ -106,7 +106,7 @@ class network(nn.Module):
         self.rois = Variable(self.rois)
          # do roi pooling based on predicted rois
         roi_feat = self.roi_extraction(base_feat, self.rois.view(-1, 5), \
-                                          self.roi_pooling_size, cfg.TRAIN.FEAT_STRIDE)
+                                          cfg.POOLING_SIZE, cfg.TRAIN.FEAT_STRIDE)
         inner_product = self.Regression(roi_feat)
         bbox_pred = self.bbox_pred(inner_product)
         cls_inner = self.cls_inner(inner_product)

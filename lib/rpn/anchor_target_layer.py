@@ -14,7 +14,7 @@ import torch.nn as nn
 import numpy as np
 import numpy.random as npr
 
-from model.utils.config import cfg
+from models.config import cfg
 from lib.rpn.generate_anchors import generate_anchors
 from lib.rpn.bbox_transform import clip_boxes, clip_boxes_batch
 from lib.rpn.bbox_transform import bbox_transform_batch

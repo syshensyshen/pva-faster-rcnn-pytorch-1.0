@@ -17,7 +17,7 @@ import yaml
 from models.config import cfg
 from lib.rpn.generate_anchors import generate_anchors
 from lib.rpn.bbox_transform import clip_boxes, clip_boxes_batch
-from lib.rpn.nms import nms
+from lib.roi_layers.nms import nms
 import pdb
 
 DEBUG = False

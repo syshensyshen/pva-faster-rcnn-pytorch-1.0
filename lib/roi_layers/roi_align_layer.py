@@ -5,11 +5,11 @@ from torch.autograd import Function
 from torch.autograd.function import once_differentiable
 from torch.nn.modules.utils import _pair
 
-from model import _C
+from models import _C
 
 import pdb
 
-class ROIAlignLayer(Function):
+class _ROIAlignLayer(Function):
     @staticmethod
     def forward(ctx, input, roi, output_size, spatial_scale, sampling_ratio):
         ctx.save_for_backward(roi)
@@ -43,12 +43,12 @@ class ROIAlignLayer(Function):
         return grad_input, None, None, None, None
 
 
-roi_align = _ROIAlign.apply
+roi_align = _ROIAlignLayer.apply
 
 
-class ROIAlign(nn.Module):
+class ROIAlignLayer(nn.Module):
     def __init__(self, output_size, spatial_scale, sampling_ratio):
-        super(ROIAlign, self).__init__()
+        super(ROIAlignLayer, self).__init__()
         self.output_size = output_size
         self.spatial_scale = spatial_scale
         self.sampling_ratio = sampling_ratio

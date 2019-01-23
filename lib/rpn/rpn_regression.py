@@ -16,7 +16,7 @@ import time
 
 class rpn_regression(nn.Module):
 
-     def _init_weights(self):
+    def _init_weights(self):
         def normal_init(m, mean, stddev, truncated=False):
             """
             weight initalizer: truncated normal and random normal.
