@@ -285,7 +285,7 @@ __C.GPU_ID = 0
 __C.POOLING_MODE = 'crop'
 
 # Size of the pooled region after RoI pooling
-__C.POOLING_SIZE = 7
+__C.POOLING_SIZE = 6
 
 # Maximal number of gt rois in an image during Training
 __C.MAX_NUM_GT_BOXES = 20
@@ -297,7 +297,7 @@ __C.ANCHOR_SCALES = [8,16,32]
 __C.ANCHOR_RATIOS = [0.5,1,2]
 
 # Feature stride for RPN
-__C.FEAT_STRIDE = [16, ]
+__C.FEAT_STRIDE = [16]
 
 __C.CUDA = False
 

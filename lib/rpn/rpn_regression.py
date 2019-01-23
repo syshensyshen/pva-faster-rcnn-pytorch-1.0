@@ -43,8 +43,8 @@ class rpn_regression(nn.Module):
         #self.rpn_conv1 = nn.Conv2d(128, 384, 3, 1, 1, bias=True)
         self.rpn_conv1 = nn.Conv2d(self.inchannels, 256, 3, 1, 1, bias=True)
         self.rpn_number = len(self.anchor_scales) * len(self.anchor_ratios)
-        self.rpn_cls_score = nn.Conv2d(128, self.rpn_number << 1, 1, 1, 0, bias=True)
-        self.rpn_bbox_pred = nn.Conv2d(512, self.rpn_number << 2, 1, 1, 0, bias=True)
+        self.rpn_cls = nn.Conv2d(256, self.rpn_number << 1, 1, 1, 0, bias=True)
+        self.rpn_bbox = nn.Conv2d(256, self.rpn_number << 2, 1, 1, 0, bias=True)
         self.rpn_anchor_target = AnchorTargetLayer(self.feat_stride, \
                                                    self.anchor_scales,\
                                                    self.anchor_ratios)
@@ -62,25 +62,26 @@ class rpn_regression(nn.Module):
         )
         return x
 
-    def forward(self, base_feat, im_info, gt_boxes, num_boxes):
+    def forward(self, base_feat, im_info, gt_boxes):
         #convf_rpn = F.relu(self.convf_rpn(base_feat))
         #F.relu(self.convf_2(base_feat))
         #convf_2 = self.rpn_conv1()
         #rpn_conv1 = F.relu(self.rpn_conv1(convf_rpn))
         #base_feat = convf_rpn + convf_2
         batch_size = base_feat.size(0)
-        rpn_conv1 = F.relu(self.rpn_Conv(base_feat), inplace=True)
-        rpn_cls_score = self.rpn_cls_score(rpn_conv1)
+        rpn_conv1 = F.relu(self.rpn_conv1(base_feat), inplace=True)
+        base_feat = rpn_conv1
+        rpn_cls_score = self.rpn_cls(rpn_conv1)
         rpn_cls_score_reshape = self.reshape(rpn_cls_score, 2)
         rpn_cls_prob_reshape = F.softmax(rpn_cls_score_reshape, 1)
         rpn_cls_prob = self.reshape(rpn_cls_prob_reshape, self.rpn_number << 1)
-        rpn_bbox_pred = self.rpn_bbox_pred(rpn_conv1)
+        rpn_bbox_pred = self.rpn_bbox(rpn_conv1)
         self.rpn_loss_cls = 0
         self.rpn_loss_box = 0
         if self.training:
             assert gt_boxes is not None
-            rpn_data = self.rpn_anchor_target((rpn_cls_score.data, gt_boxes, im_info, num_boxes))
-            self.rpn_cls_score = rpn_cls_score_reshape.permute(0, 2, 3, 1).contiguous().view(batch_size, -1, 2)
+            rpn_data = self.rpn_anchor_target((rpn_cls_score.data, gt_boxes, im_info))
+            rpn_cls_score = rpn_cls_score_reshape.permute(0, 2, 3, 1).contiguous().view(batch_size, -1, 2)
             rpn_label = rpn_data[0].view(batch_size, -1)
             rpn_keep = Variable(rpn_label.view(-1).ne(-1).nonzero().view(-1))
             rpn_cls_score = torch.index_select(rpn_cls_score.view(-1,2), 0, rpn_keep)

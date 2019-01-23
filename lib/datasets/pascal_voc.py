@@ -120,7 +120,7 @@ def _get_image_blob(im, PIXEL_MEANS, target_size, MAX_SIZE, SCALE_MULTIPLE_OF):
     # Axis order will become: (batch elem, channel, height, width)
     channel_swap = (2, 0, 1)
     blob = blob.transpose(channel_swap)
-    print(blob.shape)
+    #print(blob.shape)
 
     return blob, im_scale 
 
@@ -141,7 +141,7 @@ def get_target_size(target_size, im, multiple, max_size):
     return int(width), int(height), channles
 
 def check_file(path, name, postfix):
-    return os.path.exists(path + '/' + name.replace('.xml', postfix))
+    return os.path.isfile(path + '/' + name.replace('.xml', postfix))
 
 def prepareBatchData(xml_path, img_path, batch_size, xmllist):
     #for ix, xml_path in enumerate(xmllist):
@@ -161,12 +161,15 @@ def prepareBatchData(xml_path, img_path, batch_size, xmllist):
             postfix = '.bmp'
         if check_file(img_path, name, '.png'):
             postfix = '.png'
-        ims.append(cv2.imread(img_path + '/' + name.replace('.xml', postfix)))
+        im = cv2.imread(img_path + '/' + name.replace('.xml', postfix))
+        #print(img_path, name, postfix)
+        ims.append(im)
         boxes.append(xml_context['boxes'])
         labels.append(xml_context['gt_classes'])
     gt_boxes = np.zeros((batch_size, max_len, 5), dtype=np.float32)    
     im_scales = np.zeros((batch_size, 4), dtype = np.float32)
     target_size = SCALES[random.randint(0, len(SCALES)-1)]
+    #print(len(ims))
     width, height, channles = get_target_size(target_size, ims[random.randint(0, len(ims)-1)], SCALE_MULTIPLE_OF, MAX_SIZE)
     im_blobs = np.zeros((batch_size, channles, height, width), dtype = np.float32)
     for ix, gt in enumerate(boxes):
@@ -186,5 +189,6 @@ def prepareBatchData(xml_path, img_path, batch_size, xmllist):
         im_scales[ix,:] = np.array(
             [np.hstack((height, width, im_scale[0], im_scale[1]))],
             dtype=np.float32)
+        #print(im_blobs.shape)
     
     return [gt_boxes, im_blobs, im_scales]

@@ -16,7 +16,7 @@ import math
 import yaml
 from models.config import cfg
 from lib.rpn.generate_anchors import generate_anchors
-from lib.rpn.bbox_transform import clip_boxes, clip_boxes_batch
+from lib.rpn.bbox_transform import bbox_transform_inv, clip_boxes, clip_boxes_batch
 from lib.roi_layers.nms import nms
 import pdb
 
@@ -80,7 +80,7 @@ class ProposalLayer(nn.Module):
         # proposals = clip_boxes_batch(proposals, im_info, batch_size)
 
         # assign the score to 0 if it's non keep.
-        keep = self._filter_boxes(proposals, min_size, im_info, batch_size)
+        #keep = self._filter_boxes(proposals, min_size, im_info, batch_size)
 
         # trim keep index to make it euqal over batch
         # keep_idx = torch.cat(tuple(keep_idx), 0)
