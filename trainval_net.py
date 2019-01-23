@@ -27,10 +27,10 @@ def parse_args():
   """
   parser     = argparse.ArgumentParser(description='Simple training script for training a RetinaNet network.')
   parser.add_argument('--dataset', default="csv",help='Dataset type, must be one of csv or coco.')
-  parser.add_argument('--xml_path', default = "G:\\data\\middle\\xml\\",help='Path to containing annAnnotations')
-  parser.add_argument('--img_path', default = "G:\\data\\middle\\pic\\",help='Path to containing images')
-  parser.add_argument('--epochs', help='Number of epochs', type=int, default=40)
-  parser.add_argument('--batch_size', help='batch_size', default=1, type=int)
+  parser.add_argument('--xml_path', default = "/data/ssy/front_parts/VOC2007/Annotations/",help='Path to containing annAnnotations')
+  parser.add_argument('--img_path', default = "/data/ssy/front_parts/VOC2007/JPEGImages/",help='Path to containing images')
+  parser.add_argument('--epochs', help='Number of epochs', type=int, default=600)
+  parser.add_argument('--batch_size', help='batch_size', default=2, type=int)
 
   args = parser.parse_args()
   return args
@@ -58,11 +58,12 @@ def main():
   gt_boxes = Variable(gt_boxes)
 
   model = torch.nn.DataParallel(model).cuda()
-  optimizer = torch.optim.SGD(model.parameters(), lr=1e-4, momentum=cfg.TRAIN.MOMENTUM)
+  optimizer = torch.optim.SGD(model.parameters(), lr=1e-2, momentum=cfg.TRAIN.MOMENTUM)
   scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=15, verbose=True,mode="max")
   for epoch in range(0, args.epochs):
     loss_temp = 0
     for iters in range(0, iters_per_epoch):
+      optimizer.zero_grad()
       start_iter = iters * batch_szie
       end_iter = start_iter + batch_szie
       if end_iter > sample_size:
@@ -87,8 +88,7 @@ def main():
 
       loss = rpn_loss_cls.mean() + rpn_loss_bbox.mean() \
            + loss_cls.mean() + loss_bbox.mean()
-      loss_temp += loss.item()
-      optimizer.zero_grad()
+      loss_temp += loss.item()      
       loss.backward()
       optimizer.step()
 
