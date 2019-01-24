@@ -60,8 +60,9 @@ class ProposalTargetLayer(nn.Module):
         batch_size = labels_batch.size(0)
         rois_per_image = labels_batch.size(1)
         clss = labels_batch
-        bbox_targets = bbox_target_data.new(batch_size, rois_per_image, 4).zero_()
+        bbox_targets = bbox_target_data.new(batch_size, rois_per_image, 4 * num_classes).zero_()        
         bbox_inside_weights = bbox_target_data.new(bbox_targets.size()).zero_()
+        #print(bbox_target_data.shape, bbox_targets.shape, bbox_inside_weights.shape)
 
         for b in range(batch_size):
             # assert clss[b].sum() > 0
@@ -70,8 +71,11 @@ class ProposalTargetLayer(nn.Module):
             inds = torch.nonzero(clss[b] > 0).view(-1)
             for i in range(inds.numel()):
                 ind = inds[i]
-                bbox_targets[b, ind, :] = bbox_target_data[b, ind, :]
-                bbox_inside_weights[b, ind, :] = self.BBOX_INSIDE_WEIGHTS
+                cls = clss[b][ind]
+                start = int(cls * 4)
+                end = start + 4
+                bbox_targets[b, ind, start:end] = bbox_target_data[b, ind, :]
+                bbox_inside_weights[b, ind, start:end] = self.BBOX_INSIDE_WEIGHTS
 
         return bbox_targets, bbox_inside_weights
 
@@ -161,11 +165,11 @@ class ProposalTargetLayer(nn.Module):
             gt_rois_batch[i] = gt_boxes[i][gt_assignment[i][keep_inds]]
         bbox_target_data = self._compute_targets_pytorch(
                 rois_batch[:,:,1:5], gt_rois_batch[:,:,:4])
-
+        
         bbox_targets, bbox_inside_weights = \
                 self._get_bbox_regression_labels_pytorch(\
                     bbox_target_data, \
                     labels_batch, \
                     num_classes)
-
+        #print(bbox_targets.shape)
         return labels_batch, rois_batch, bbox_targets, bbox_inside_weights

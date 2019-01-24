@@ -19,7 +19,8 @@ from lib.datasets.pascal_voc import prepareBatchData
 import os
 from models.model import network
 from models.config import cfg
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+from tools.net_utils import get_current_lr
+#os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
 def parse_args():
   """
@@ -31,6 +32,7 @@ def parse_args():
   parser.add_argument('--img_path', default = "/data/ssy/front_parts/VOC2007/JPEGImages/",help='Path to containing images')
   parser.add_argument('--epochs', help='Number of epochs', type=int, default=600)
   parser.add_argument('--batch_size', help='batch_size', default=2, type=int)
+  parser.add_argument('--save_dir', default='./', type=str)
 
   args = parser.parse_args()
   return args
@@ -40,6 +42,9 @@ def main():
   xml_path = args.xml_path
   img_path = args.img_path
   batch_size = args.batch_size
+  save_dir = args.save_dir
+  if not os.path.isdir(save_dir):
+    os.mkdir(save_dir)
   
   xmls = glob(os.path.join(args.xml_path, "*.xml"))
   sample_size = len(xmls)
@@ -58,12 +63,16 @@ def main():
   gt_boxes = Variable(gt_boxes)
 
   model = torch.nn.DataParallel(model).cuda()
-  optimizer = torch.optim.SGD(model.parameters(), lr=1e-2, momentum=cfg.TRAIN.MOMENTUM)
-  scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=15, verbose=True,mode="max")
+  optimizer = torch.optim.SGD(model.parameters(), lr=1e-1, momentum=cfg.TRAIN.MOMENTUM)
+  lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.1, patience=20, verbose=True,mode="max")
+  #lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, patience=15, verbose=True,mode="max")
   for epoch in range(0, args.epochs):
     loss_temp = 0
     for iters in range(0, iters_per_epoch):
       optimizer.zero_grad()
+      optimizer.step()
+      #lr_scheduler.step()
+      model.train()
       start_iter = iters * batch_szie
       end_iter = start_iter + batch_szie
       if end_iter > sample_size:
@@ -89,17 +98,25 @@ def main():
       loss = rpn_loss_cls.mean() + rpn_loss_bbox.mean() \
            + loss_cls.mean() + loss_bbox.mean()
       loss_temp += loss.item()      
-      loss.backward()
-      optimizer.step()
+      loss.backward()      
 
       if iters % 100 == 0:
         if iters > 0:
-          loss_temp /= 50      
+          loss_temp /= 50   
 
-        print("[epoch %2d][iter %4d/%4d] loss: %.4f" \
-                                % (epoch, iters, iters_per_epoch, loss_temp))
+        current_lr = get_current_lr(optimizer)   
+
+        print("[epoch %2d][iter %4d/%4d] loss: %.4f lr: %.4f" \
+                                % (epoch, iters, iters_per_epoch, loss_temp, current_lr))
         print("\t\t\trpn_cls: %.4f, rpn_box: %.4f, rcnn_cls: %.4f, rcnn_box %.4f" \
                       % (rpn_loss_cls, rpn_loss_bbox, loss_cls, loss_bbox))
+    state_dict = model.module.state_dict()
+    if epoch >= 30 and epoch % 20 ==0:
+      torch.save({
+      'epoch': epoch,
+      'save_dir': save_dir,
+      'state_dict': state_dict},
+      os.path.join(save_dir, 'kpt' + '_%03d.ckpt' % epoch))
 
 if __name__ == "__main__":
   main()

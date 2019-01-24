@@ -103,6 +103,7 @@ class network(nn.Module):
             self.rois, self.labels, self.bbox_targets, \
                 self.bbox_inside_weights, self.bbox_outside_weights = \
                 self.proposaltargetlayer(self.rois, gt_boxes)
+            #print(self.bbox_targets.shape)
             self.labels = Variable(self.labels.view(-1).long())
             self.bbox_targets = Variable(self.bbox_targets.view(-1, self.bbox_targets.size(2)))
             self.bbox_inside_weights = Variable(self.bbox_inside_weights.\
@@ -119,16 +120,17 @@ class network(nn.Module):
         bbox_pred = self.bbox_pred(inner_product)
         cls_score = self.cls_prob(inner_product)
         cls_prob = F.softmax(cls_score, 1)
+        #cls_prob = torch.sigmoid(cls_score)
 
-        if self.training:
-            bbox_pred_view = bbox_pred.view(bbox_pred.size(0), int(bbox_pred.size(1) / 4), 4)
-            bbox_pred_select = torch.gather(bbox_pred_view, 1, self.labels.view(self.labels.size(0), 1, 1).expand(self.labels.size(0), 1, 4))
-            bbox_pred = bbox_pred_select.squeeze(1)
+        #if self.training:
+        #    bbox_pred_view = bbox_pred.view(bbox_pred.size(0), int(bbox_pred.size(1) / 4), 4)
+        #    bbox_pred_select = torch.gather(bbox_pred_view, 1, self.labels.view(self.labels.size(0), 1, 1).expand(self.labels.size(0), 1, 4))
+        #    bbox_pred = bbox_pred_select.squeeze(1)
 
         #print(bbox_pred.shape, self.bbox_targets.shape, cls_prob.shape)
 
         loss_cls  = 0
-        loss_bbox = 0        
+        loss_bbox = 0                
 
         if self.training:
             loss_cls = F.cross_entropy(cls_prob, self.labels)

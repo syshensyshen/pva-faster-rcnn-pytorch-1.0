@@ -1,9 +1,5 @@
-# pva-pytorch
+# torch-object-detecion
 
-pva-fatser-rcnn using pytorch
+object detection using pytorch
 
-batch size parameter
-
-hyper net using in network backstone
-
-multi-scales train implement
+first implement ssd, after update the detection method
