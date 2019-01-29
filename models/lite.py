@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import math
+from models.pva_faster_rcnn import pva_faster_rcnn 
 
 def initvars(modules):
     # Copied from vision/torchvision/models/resnet.py
@@ -244,3 +245,57 @@ class PVALiteFeat(nn.Module):
         x = self.Inception4d(x)
         x = self.Inception4e(x)
         return x
+
+class liteHyper(PVALiteFeat):
+    def __init__(self):
+        super(liteHyper, self).__init__()
+        initvars(self.modules())
+    def forward(self, input):
+        x1 = self.conv1(input) # 1/2 feature
+        x2 = self.conv2(x1) # 1/4 feature
+        x2 = self.conv3(x2) # 1/8 feature
+        x3 = self.Inception3a(x2) # 1/16 feature
+        x3 = self.Inception3b(x3)
+        x3 = self.Inception3c(x3)
+        x3 = self.Inception3d(x3)
+        x3 = self.Inception3e(x3)
+        x4 = self.Inception4a(x3) # 1/32 feature
+        x4 = self.Inception4b(x4)
+        x4 = self.Inception4c(x4)
+        x4 = self.Inception4d(x4)
+        x4 = self.Inception4e(x4)
+        downsample = F.avg_pool2d(x2, kernel_size=3, stride=2, padding=1)
+        upsample = F.interpolate(x4, scale_factor=2, mode="nearest")
+        features = torch.cat((downsample, x3, upsample), 1)
+        return features
+
+class lite_faster_rcnn(pva_faster_rcnn):
+  def __init__(self, classes, pretrained=False, class_agnostic=False):
+      self.model_path = 'data/pretrained_model/vgg16_caffe.pth'
+      self.dout_base_model = 544
+      self.pretrained = pretrained
+      self.class_agnostic = class_agnostic
+      pva_faster_rcnn.__init__(self, classes, class_agnostic)
+
+  def _init_modules(self):
+    lite = liteHyper()
+    #self.pretrained = False
+    if self.pretrained:
+        print("Loading pretrained weights from %s" %(self.model_path))
+
+    self.RCNN_base = lite
+    
+    self.RCNN_cls_score = nn.Linear(512, self.n_classes)
+
+    if self.class_agnostic:
+      self.RCNN_bbox_pred = nn.Linear(512, 4)
+    else:
+      self.RCNN_bbox_pred = nn.Linear(512, 4 * self.n_classes)
+
+  def _head_to_tail(self, pool5):
+    
+    pool5_flat = pool5.view(pool5.size(0), -1)
+    #print(pool5_flat.shape)
+    fc_features = self.RCNN_top(pool5_flat)
+    
+    return fc_features

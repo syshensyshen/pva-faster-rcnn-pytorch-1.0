@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+'''
+# @Author  : syshen 
+# @date    : 2019/1/7-2019/1/23
+# @File    : data loader
+'''
 import os
 import xml.etree.ElementTree as ET
 import numpy as np
@@ -8,8 +14,12 @@ import uuid
 import cv2
 import random
 
-SCALES = (416, 448, 480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800, 832, 864)
+#SCALES = (416, 448, 480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800, 832, 864, 896, 928, 960, 992, 1024)
+#SCALES = (480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800, 832, 864)
+SCALES = (576, 608, 640)
 PIXEL_MEANS = np.array([[[102.9801, 115.9465, 122.7717]]])
+#PIXEL_MEANS = np.array([[[0.485, 0.456, 0.406]]])
+PIXEL_STDS = np.array([[[0.229, 0.224, 0.225]]])
 SCALE_MULTIPLE_OF = 32
 MAX_SIZE = 1440
 
@@ -22,7 +32,8 @@ MAX_SIZE = 1440
 #                         'motorbike', 'person', 'pottedplant',
 #                         'sheep', 'sofa', 'train', 'tvmonitor',
 #                         'rebar')
-class_list = ('__background__', 'HM', 'TT')
+#class_list = ('__background__', 'HM', 'TT')
+class_list = ('__background__', 'left', 'top', 'middle', 'back', 'label')
 class_to_ind = dict(zip(class_list, range(0, len(class_list))))
 
 def load_pascal_annotation(xml_path):
@@ -49,6 +60,12 @@ def load_pascal_annotation(xml_path):
         y2 = float(bbox.find('ymax').text) #- 1
         #cls = self._class_to_ind[obj.find('name').text.lower().strip()]        
         class_name = obj.find('name').text.strip()
+        if class_name == 'bottom':
+            class_name = 'top'
+        if class_name == 'right':
+            class_name = 'left'
+        if class_name == 'lable':
+            class_name = 'label'
         if not class_name in class_list:
             continue
         cls = class_to_ind[class_name]
@@ -65,7 +82,7 @@ def load_pascal_annotation(xml_path):
     #print boxes, gt_classes
     boxes = np.delete(boxes, zeros_label, axis=0)
     gt_classes = np.delete(gt_classes, zeros_label, axis=0)
-    #print boxes, gt_classes
+    #print(boxes, gt_classes)
     #raw_input()
 
     return {'img_name': img_name,
@@ -97,6 +114,7 @@ def im_list_to_blob(im):
     blob = np.zeros((1, im.shape[0], im.shape[1], 3),
                     dtype=np.float32)
     blob[0, 0:im.shape[0], 0:im.shape[1], :] = im
+    #print(blob[0, 0:im.shape[0], 0:im.shape[1], :])
     # Move channels (axis 3) to axis 1
     # Axis order will become: (batch elem, channel, height, width)
     channel_swap = (0, 3, 1, 2)
@@ -163,6 +181,7 @@ def prepareBatchData(xml_path, img_path, batch_size, xmllist):
             postfix = '.png'
         im = cv2.imread(img_path + '/' + name.replace('.xml', postfix))
         #print(img_path, name, postfix)
+        #print(im.shape)
         ims.append(im)
         boxes.append(xml_context['boxes'])
         labels.append(xml_context['gt_classes'])
@@ -177,9 +196,11 @@ def prepareBatchData(xml_path, img_path, batch_size, xmllist):
         im_scale_x = width / float(ims[ix].shape[1])
         im_scale_y = height / float(ims[ix].shape[0])
         im_scale = np.array([im_scale_x, im_scale_y])
-        im = ims[ix] - PIXEL_MEANS
-        im = cv2.resize(im, None, None, fx=im_scale_x, fy=im_scale_y,
-                    interpolation=cv2.INTER_LINEAR)
+        im = ims[ix]
+        im = im.astype(np.float32) / 255.0
+        #im = (im - PIXEL_MEANS) / PIXEL_STDS
+        im = im - PIXEL_MEANS
+        im = cv2.resize(im, (width, height), interpolation=cv2.INTER_LINEAR)
         im_blobs[ix, :, :, :] = im_list_to_blob(im)
         gt_boxes[ix, 0:len_t, 0] = gt[:, 0] * im_scale[0]
         gt_boxes[ix, 0:len_t, 1] = gt[:, 1] * im_scale[1]

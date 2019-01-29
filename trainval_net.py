@@ -17,9 +17,12 @@ import torch.optim as optim
 import torchvision.transforms as transforms
 from lib.datasets.pascal_voc import prepareBatchData
 import os
-from models.model import network
+#from models.model import network
 from models.config import cfg
 from tools.net_utils import get_current_lr
+from collections import OrderedDict
+from tools.net_utils import adjust_learning_rate
+from models.lite import lite_faster_rcnn
 #os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
 def parse_args():
@@ -30,7 +33,7 @@ def parse_args():
   parser.add_argument('--dataset', default="csv",help='Dataset type, must be one of csv or coco.')
   parser.add_argument('--xml_path', default = "/data/ssy/front_parts/VOC2007/Annotations/",help='Path to containing annAnnotations')
   parser.add_argument('--img_path', default = "/data/ssy/front_parts/VOC2007/JPEGImages/",help='Path to containing images')
-  parser.add_argument('--epochs', help='Number of epochs', type=int, default=600)
+  parser.add_argument('--epochs', help='Number of epochs', type=int, default=1000)
   parser.add_argument('--batch_size', help='batch_size', default=2, type=int)
   parser.add_argument('--save_dir', default='./', type=str)
 
@@ -50,7 +53,8 @@ def main():
   sample_size = len(xmls)
   batch_szie = args.batch_size
   iters_per_epoch = int(np.floor(sample_size / batch_szie))
-  model = network(3, align=True)
+  model = lite_faster_rcnn(6)
+  model.create_architecture()
   #use_gpu = True
   #model = model.cuda()
   im_blobs = torch.FloatTensor(1).cuda()
@@ -63,16 +67,22 @@ def main():
   gt_boxes = Variable(gt_boxes)
 
   model = torch.nn.DataParallel(model).cuda()
-  optimizer = torch.optim.SGD(model.parameters(), lr=1e-1, momentum=cfg.TRAIN.MOMENTUM)
-  lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.1, patience=20, verbose=True,mode="max")
+  model.train()
+  
+  #optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, momentum=cfg.TRAIN.MOMENTUM, weight_decay=0.00005)
+  optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=0.00005)
+  #lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.1, patience=60, verbose=True,mode="max")
   #lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, patience=15, verbose=True,mode="max")
+  #lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=40, gamma=0.1)
+  lr_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[1, 62, 102, 132, 145], gamma=0.1)
+  lr_decay_step = 40
   for epoch in range(0, args.epochs):
     loss_temp = 0
+    if epoch % lr_decay_step == 0 and epoch != 0:
+      adjust_learning_rate(optimizer, 0.1)
+      lr_decay_step = lr_decay_step >> 1
     for iters in range(0, iters_per_epoch):
-      optimizer.zero_grad()
-      optimizer.step()
-      #lr_scheduler.step()
-      model.train()
+      model.train() 
       start_iter = iters * batch_szie
       end_iter = start_iter + batch_szie
       if end_iter > sample_size:
@@ -92,17 +102,20 @@ def main():
       #print(gt_boxes.shape)
       #print(im_blobs.shape)
       #print(im_scales.shape)
+      optimizer.zero_grad()      
       rois, cls_prob, bbox_pred, rpn_loss_cls, \
-      rpn_loss_bbox, loss_cls, loss_bbox = model(im_blobs, im_info, gt_boxes)
+      rpn_loss_bbox, loss_cls, loss_bbox, rois_label = model(im_blobs, im_info, gt_boxes)
 
       loss = rpn_loss_cls.mean() + rpn_loss_bbox.mean() \
            + loss_cls.mean() + loss_bbox.mean()
       loss_temp += loss.item()      
-      loss.backward()      
+      loss.backward()
+      optimizer.step()
+      display = 20
 
-      if iters % 100 == 0:
+      if iters % display == 0:
         if iters > 0:
-          loss_temp /= 50   
+          loss_temp /= display   
 
         current_lr = get_current_lr(optimizer)   
 
@@ -116,7 +129,7 @@ def main():
       'epoch': epoch,
       'save_dir': save_dir,
       'state_dict': state_dict},
-      os.path.join(save_dir, 'kpt' + '_%03d.ckpt' % epoch))
+      os.path.join(save_dir, 'phone_' + '_%03d.ckpt' % epoch))
 
 if __name__ == "__main__":
   main()

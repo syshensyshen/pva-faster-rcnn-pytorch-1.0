@@ -15,9 +15,9 @@ import pdb
 from lib.rpn.bbox_transform import bbox_overlaps_batch,\
     bbox_transform_batch
 
-class ProposalTargetLayer(nn.Module):
+class _ProposalTargetLayer(nn.Module):
     def __init__(self, classes):
-        super(ProposalTargetLayer, self).__init__()
+        super(_ProposalTargetLayer, self).__init__()
         self._num_classes = classes
         self.BBOX_NORMALIZE_MEANS = torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_MEANS)
         self.BBOX_NORMALIZE_STDS = torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_STDS)

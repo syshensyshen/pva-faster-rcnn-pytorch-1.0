@@ -6,20 +6,21 @@ import torch
 from torchsummary import summary
 import cv2
 import numpy as np
-'''
+import torchvision.models as models
+
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 #model = liteHyper().to(device)
 model = pvaHyper().to(device)
-img_size = 192
+img_size = 320
 num_classes = 1000
 batch_size = 12
-input = torch.empty(batch_size, 3, img_size, img_size, dtype=torch.float32).to(device)
-features = model.forward(input)
-print(features)
-print(features.shape)
+#input = torch.zeros(batch_size, 3, img_size, img_size, dtype=torch.float32).to(device)
+#features = model(input)
+#print(features)
+#print(features.shape)
 #summary(model, (3, 320, 320))
 #print(model)
-'''
+
 
 '''
 _feat_stride = 16

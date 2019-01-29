@@ -22,7 +22,7 @@ __C.TRAIN = edict()
 __C.TRAIN.LEARNING_RATE = 0.001
 
 # pretain model
-__C.TRAIN.PRETRAINEDMODEL = ''
+__C.TRAIN.PRETRAINEDMODEL = './models/pvanet_600epochs.checkpoint.pth.tar'
 # Momentum
 __C.TRAIN.MOMENTUM = 0.9
 
@@ -282,7 +282,7 @@ __C.USE_GPU_NMS = True
 # Default GPU device id
 __C.GPU_ID = 0
 
-__C.POOLING_MODE = 'crop'
+__C.POOLING_MODE = 'align'
 
 # Size of the pooled region after RoI pooling
 __C.POOLING_SIZE = 6

@@ -385,3 +385,23 @@ def pvanet(**kwargs):
     model = PVANet(**kwargs)
 
     return model
+
+
+class pvaHyper(PVANetFeat):
+    '''
+    '''
+    def __init__(self, pretrained=True):
+        super(pvaHyper, self).__init__()
+        initvars(self.modules())
+
+    def forward(self, input):
+        x0 = self.conv1(input)
+        x1 = self.conv2(x0)  # 1/4 feature
+        x2 = self.conv3(x1)  # 1/8
+        x3 = self.conv4(x2)  # 1/16
+        x4 = self.conv5(x3)  # 1/32
+        downsample = F.avg_pool2d(x2, kernel_size=3, stride=2, padding=1)
+        upsample = F.interpolate(x4, scale_factor=2, mode="nearest")
+        #print(downsample.shape, upsample.shape, x3.shape)
+        features = torch.cat((downsample, x3, upsample), 1)
+        return features
