@@ -55,18 +55,11 @@ def main():
   iters_per_epoch = int(np.floor(sample_size / batch_szie))
   model = lite_faster_rcnn(6)
   model.create_architecture()
-  #use_gpu = True
-  #model = model.cuda()
-  im_blobs = torch.FloatTensor(1).cuda()
-  im_info = torch.FloatTensor(1).cuda()
-  num_boxes = torch.LongTensor(1).cuda()
-  gt_boxes = torch.FloatTensor(1).cuda()
-  im_blobs = Variable(im_blobs)
-  im_info = Variable(im_info)
-  num_boxes = Variable(num_boxes)
-  gt_boxes = Variable(gt_boxes)
+  use_gpu = True
+  if use_gpu:
+    model = model.cuda()
 
-  model = torch.nn.DataParallel(model).cuda()
+  model = torch.nn.DataParallel(model)
   model.train()
   
   #optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, momentum=cfg.TRAIN.MOMENTUM, weight_decay=0.00005)
@@ -96,19 +89,17 @@ def main():
         start_iter = end_iter - 1
       xml = xmls[start_iter:end_iter]
       data = prepareBatchData(xml_path, img_path, batch_size, xml)
-      gt_tensor = torch.from_numpy(data[0])
-      im_blobs_tensor = torch.from_numpy(data[1])
-      im_info_tensor = torch.from_numpy(data[2])
-      #print(im_blobs_tensor.shape)
-      gt_boxes.data.resize_(gt_tensor.size()).copy_(gt_tensor)
-      im_blobs.data.resize_(im_blobs_tensor.size()).copy_(im_blobs_tensor)
-      im_info.data.resize_(im_info_tensor.size()).copy_(im_info_tensor)
-      #print(gt_boxes.shape)
-      #print(im_blobs.shape)
-      #print(im_scales.shape)
+      gt_tensor = torch.autograd.Variable(torch.from_numpy(data[0]))
+      im_blobs_tensor = torch.autograd.Variable(torch.from_numpy(data[1]))
+      im_info_tensor = torch.autograd.Variable(torch.from_numpy(data[2]))
+      if use_gpu:
+        gt_tensor = gt_tensor.cuda()
+        im_blobs_tensor = im_blobs_tensor.cuda()
+        im_info_tensor = im_blobs_tensor.cuda()
+
       optimizer.zero_grad()      
-      rois, cls_prob, bbox_pred, rpn_loss_cls, \
-      rpn_loss_bbox, loss_cls, loss_bbox, rois_label = model(im_blobs, im_info, gt_boxes)
+      _, _, _, rpn_loss_cls, \
+      rpn_loss_bbox, loss_cls, loss_bbox, _ = model(im_blobs_tensor, im_info_tensor, gt_tensor)
 
       loss = rpn_loss_cls.mean() + rpn_loss_bbox.mean() \
            + loss_cls.mean() + loss_bbox.mean()
