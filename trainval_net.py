@@ -74,13 +74,17 @@ def main():
   #lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.1, patience=60, verbose=True,mode="max")
   #lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, patience=15, verbose=True,mode="max")
   #lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=40, gamma=0.1)
-  lr_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[1, 62, 102, 132, 145], gamma=0.1)
-  lr_decay_step = 40
+  #lr_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[62, 102, 132, 145], gamma=0.1)
+  milestones=[62, 102, 132, 145]
+  index = 0
+  lr_decay_step = milestones[index] 
   for epoch in range(0, args.epochs):
     loss_temp = 0
-    if epoch % lr_decay_step == 0 and epoch != 0:
+    if epoch > lr_decay_step:
+      index += 1
+      lr_decay_step = milestones[index]
       adjust_learning_rate(optimizer, 0.1)
-      lr_decay_step = lr_decay_step >> 1
+
     for iters in range(0, iters_per_epoch):
       model.train() 
       start_iter = iters * batch_szie
@@ -124,7 +128,7 @@ def main():
         print("\t\t\trpn_cls: %.4f, rpn_box: %.4f, rcnn_cls: %.4f, rcnn_box %.4f" \
                       % (rpn_loss_cls, rpn_loss_bbox, loss_cls, loss_bbox))
     state_dict = model.module.state_dict()
-    if epoch >= 30 and epoch % 20 ==0:
+    if epoch > 3:
       torch.save({
       'epoch': epoch,
       'save_dir': save_dir,

@@ -1,3 +1,3 @@
-python test_net.py \
-	--img_path /data/datasets/defect_detection/voc/VOC2007/JPEGImages/ \
+python predictor.py \
+	--img_path /data/ali-oss/middle-imgs/ \
 	--save_dir ./outputs/

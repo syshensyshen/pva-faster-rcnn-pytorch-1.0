@@ -197,7 +197,7 @@ def prepareBatchData(xml_path, img_path, batch_size, xmllist):
         im_scale_y = height / float(ims[ix].shape[0])
         im_scale = np.array([im_scale_x, im_scale_y])
         im = ims[ix]
-        im = im.astype(np.float32) / 255.0
+        im = im.astype(np.float32)
         #im = (im - PIXEL_MEANS) / PIXEL_STDS
         im = im - PIXEL_MEANS
         im = cv2.resize(im, (width, height), interpolation=cv2.INTER_LINEAR)

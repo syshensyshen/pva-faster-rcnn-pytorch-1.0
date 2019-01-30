@@ -109,8 +109,15 @@ class pva_faster_rcnn(nn.Module):
 
         cls_prob = cls_prob.view(batch_size, rois.size(1), -1)
         bbox_pred = bbox_pred.view(batch_size, rois.size(1), -1)
-
-        return rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_bbox, RCNN_loss_cls, RCNN_loss_bbox, rois_label
+        #print(rois.shape)
+        #for index in range(0, 300):
+        #    if cls_prob[:,index,0] < 0.5:
+        #        print(cls_prob[:,index,:], rois[:,index,:])
+        #print(bbox_pred)
+        if self.training:
+            return rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_bbox, RCNN_loss_cls, RCNN_loss_bbox, rois_label
+        else:
+            return rois, cls_prob, bbox_pred
 
     def _init_weights(self):
         def normal_init(m, mean, stddev, truncated=False):

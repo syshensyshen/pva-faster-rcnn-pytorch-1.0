@@ -102,14 +102,19 @@ class ProposalLayer(nn.Module):
             scores_single = scores_keep[i]
 
             ##### filter le min size bbox
-            keep = self._filter_boxes(proposals_single, min_size, im_info[i])
-            proposals_single = proposals_single(keep)
+            
+            #keep = self._filter_boxes(proposals_single, min_size, im_info[i])
+            #print(proposals_single.shape, keep.shape)
+            #proposals_single = proposals_single[keep]
+            #scores_single = scores_single[keep]            
 
             # # 4. sort all (proposal, score) pairs by score from highest to lowest
             # # 5. take top pre_nms_topN (e.g. 6000)
             order_single = order[i]
+            #order_single = order_single[keep]
+            #print(proposals_single.shape, scores_single.shape, order_single.shape)
 
-            if pre_nms_topN > 0 and pre_nms_topN < scores_keep.numel():
+            if pre_nms_topN > 0 and pre_nms_topN < scores_keep[i].numel():
                 order_single = order_single[:pre_nms_topN]
 
             proposals_single = proposals_single[order_single, :]
@@ -143,9 +148,9 @@ class ProposalLayer(nn.Module):
 
     def _filter_boxes(self, boxes, min_size, im_info):
         """Remove all boxes with any side smaller than min_size."""
-        x_min_size = min_size * im_info[:2]
-        y_min_size = min_size * im_info[:3]
+        x_min_size = min_size * im_info[2]
+        y_min_size = min_size * im_info[3]
         ws = boxes[:, 2] - boxes[:, 0] + 1
         hs = boxes[:, 3] - boxes[:, 1] + 1
-        keep = ((ws >= x_min_size.view(-1,1).expand_as(ws)) & (hs >= y_min_size.view(-1,1).expand_as(hs)))
+        keep = ((ws >= x_min_size) & (hs >= y_min_size))
         return keep
