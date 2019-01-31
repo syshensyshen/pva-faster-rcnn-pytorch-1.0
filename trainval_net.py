@@ -39,6 +39,7 @@ def parse_args():
   parser.add_argument('--network', default='lite', type=str)
   parser.add_argument('--classes', default=21, type=int)
   parser.add_argument('--save_dir', default='./', type=str)
+  parser.add_argument('--gpus', default=[0], type=list)
 
   args = parser.parse_args()
   return args
@@ -61,7 +62,8 @@ def main():
   if 'pva' in args.network:
     model = pva_net(args.classes, pretrained=True)
   model.create_architecture()
-  model = torch.nn.DataParallel(model)
+  device_id = [ int(elem) for elem in args.gpus if elem != ',']
+  model = torch.nn.DataParallel(model, device_ids=device_id)
   use_gpu = True
   if use_gpu:
     model = model.cuda()
@@ -77,6 +79,7 @@ def main():
   milestones=[62, 102, 132, 145]
   index = 0
   lr_decay_step = milestones[index] 
+
   for epoch in range(0, args.epochs):
     loss_temp = 0
     if epoch > lr_decay_step:
@@ -116,7 +119,23 @@ def main():
 
       if iters % display == 0:
         if iters > 0:
-          loss_temp /= display   
+          loss_temp /= display  
+        
+        #rpn_loss_cls  = 0
+        #rpn_loss_bbox = 0
+        #loss_cls      = 0
+        #loss_bbox     = 0
+
+        if len(device_id) > 1:
+          rpn_loss_cls = rpn_loss_cls.mean().item()
+          rpn_loss_bbox = rpn_loss_bbox.mean().item()
+          loss_cls = loss_cls.mean().item()
+          loss_bbox = loss_bbox.mean().item()
+        else:
+          rpn_loss_cls = rpn_loss_cls.item()
+          rpn_loss_bbox = rpn_loss_bbox.item()
+          loss_cls = loss_cls.item()
+          loss_bbox = loss_bbox.item()
 
         current_lr = get_current_lr(optimizer)   
 
