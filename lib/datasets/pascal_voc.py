@@ -19,7 +19,7 @@ import random
 SCALES = (576, 608, 640)
 PIXEL_MEANS = np.array([[[102.9801, 115.9465, 122.7717]]])
 #PIXEL_MEANS = np.array([[[0.485, 0.456, 0.406]]])
-PIXEL_STDS = np.array([[[0.229, 0.224, 0.225]]])
+#PIXEL_STDS = np.array([[[0.229, 0.224, 0.225]]])
 SCALE_MULTIPLE_OF = 32
 MAX_SIZE = 1440
 
@@ -199,7 +199,7 @@ def prepareBatchData(xml_path, img_path, batch_size, xmllist):
         im = ims[ix]
         im = im.astype(np.float32)
         #im = (im - PIXEL_MEANS) / PIXEL_STDS
-        im = im - PIXEL_MEANS
+        #im = im - PIXEL_MEANS
         im = cv2.resize(im, (width, height), interpolation=cv2.INTER_LINEAR)
         im_blobs[ix, :, :, :] = im_list_to_blob(im)
         gt_boxes[ix, 0:len_t, 0] = gt[:, 0] * im_scale[0]

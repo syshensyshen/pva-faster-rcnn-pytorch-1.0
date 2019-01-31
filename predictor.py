@@ -117,27 +117,27 @@ def im_detect(data, model, batch_size, std, mean):
     scores = cls_prob
     resluts = []
     for index in range(1, classes):
-      cls_scores = scores[0,:,index]
-      scores_over_thresh = (cls_scores > thresh)
-      cls_keep = cls_scores[scores_over_thresh]
-      bboxes_keep = pred_boxes[0,scores_over_thresh,index*4:(index+1)*4]
-      filter_keep = _filter_boxes(bboxes_keep, 16)
-      cls_keep = cls_keep[filter_keep]
-      bboxes_keep = bboxes_keep[filter_keep,:]
-      keep_idx_i = nms(bboxes_keep, cls_keep, nms_thresh)
-      keep_idx_i = keep_idx_i.long().view(-1)
-      bboxes_keep = bboxes_keep[keep_idx_i, :]
-      cls_keep = cls_keep[keep_idx_i]
-      bboxes_keep[:,0] /= im_info_tensor[0,2]
-      bboxes_keep[:,1] /= im_info_tensor[0,3]
-      bboxes_keep[:,2] /= im_info_tensor[0,2]
-      bboxes_keep[:,3] /= im_info_tensor[0,3]
-      if bboxes_keep.size(0) > 0:
-        reslut = np.zeros((bboxes_keep.size(0), 6), dtype=np.float32)
-        reslut[:,0:4] = bboxes_keep.cpu()
-        reslut[:,4] = cls_keep.cpu()
-        reslut[:,5] = index
-        resluts.append(reslut)
+        cls_scores = scores[0,:,index]
+        scores_over_thresh = (cls_scores > thresh)
+        cls_keep = cls_scores[scores_over_thresh]
+        bboxes_keep = pred_boxes[0,scores_over_thresh,index*4:(index+1)*4]
+        filter_keep = _filter_boxes(bboxes_keep, 16)
+        cls_keep = cls_keep[filter_keep]
+        bboxes_keep = bboxes_keep[filter_keep,:]
+        keep_idx_i = nms(bboxes_keep, cls_keep, nms_thresh)
+        keep_idx_i = keep_idx_i.long().view(-1)
+        bboxes_keep = bboxes_keep[keep_idx_i, :]
+        cls_keep = cls_keep[keep_idx_i]
+        bboxes_keep[:,0] /= im_info_tensor[0,2]
+        bboxes_keep[:,1] /= im_info_tensor[0,3]
+        bboxes_keep[:,2] /= im_info_tensor[0,2]
+        bboxes_keep[:,3] /= im_info_tensor[0,3]
+        if bboxes_keep.size(0) > 0:
+          reslut = np.zeros((bboxes_keep.size(0), 6), dtype=np.float32)
+          reslut[:,0:4] = bboxes_keep.cpu()
+          reslut[:,4] = cls_keep.cpu()
+          reslut[:,5] = index
+          resluts.append(reslut)
   return resluts
 
 def main():

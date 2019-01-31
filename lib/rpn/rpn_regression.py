@@ -23,24 +23,25 @@ import time
 class _RPN(nn.Module):
 
     """ region proposal network """
-    def __init__(self, din):
+    def __init__(self, din, rpn_din):
         super(_RPN, self).__init__()
         
         self.din = din  # get depth of input feature map, e.g., 512
         self.anchor_scales = cfg.ANCHOR_SCALES
         self.anchor_ratios = cfg.ANCHOR_RATIOS
         self.feat_stride = cfg.FEAT_STRIDE[0]
+        self.rpn_din = rpn_din
 
         # define the convrelu layers processing input feature map
-        self.RPN_Conv = nn.Conv2d(self.din, 512, 3, 1, 1, bias=True)
+        self.RPN_Conv = nn.Conv2d(self.din, self.rpn_din, 3, 1, 1, bias=True)
 
         # define bg/fg classifcation score layer
         self.nc_score_out = len(self.anchor_scales) * len(self.anchor_ratios) * 2 # 2(bg/fg) * 9 (anchors)
-        self.RPN_cls_score = nn.Conv2d(512, self.nc_score_out, 1, 1, 0)
+        self.RPN_cls_score = nn.Conv2d(self.rpn_din, self.nc_score_out, 1, 1, 0)
 
         # define anchor box offset prediction layer
         self.nc_bbox_out = len(self.anchor_scales) * len(self.anchor_ratios) * 4 # 4(coords) * 9 (anchors)
-        self.RPN_bbox_pred = nn.Conv2d(512, self.nc_bbox_out, 1, 1, 0)
+        self.RPN_bbox_pred = nn.Conv2d(self.rpn_din, self.nc_bbox_out, 1, 1, 0)
 
         # define proposal layer
         self.RPN_proposal = ProposalLayer(self.feat_stride, self.anchor_scales, self.anchor_ratios)

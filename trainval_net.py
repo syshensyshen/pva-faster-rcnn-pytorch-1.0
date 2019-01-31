@@ -23,6 +23,7 @@ from tools.net_utils import get_current_lr
 from collections import OrderedDict
 from tools.net_utils import adjust_learning_rate
 from models.lite import lite_faster_rcnn
+from models.pvanet import pva_net
 #os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
 def parse_args():
@@ -35,6 +36,8 @@ def parse_args():
   parser.add_argument('--img_path', default = "/data/ssy/front_parts/VOC2007/JPEGImages/",help='Path to containing images')
   parser.add_argument('--epochs', help='Number of epochs', type=int, default=1000)
   parser.add_argument('--batch_size', help='batch_size', default=2, type=int)
+  parser.add_argument('--network', default='lite', type=str)
+  parser.add_argument('--classes', default=21, type=int)
   parser.add_argument('--save_dir', default='./', type=str)
 
   args = parser.parse_args()
@@ -53,15 +56,18 @@ def main():
   sample_size = len(xmls)
   batch_szie = args.batch_size
   iters_per_epoch = int(np.floor(sample_size / batch_szie))
-  model = lite_faster_rcnn(6)
+  if 'lite' in args.network:
+    model = lite_faster_rcnn(args.classes)
+  if 'pva' in args.network:
+    model = pva_net(args.classes, pretrained=True)
   model.create_architecture()
+  model = torch.nn.DataParallel(model)
   use_gpu = True
   if use_gpu:
     model = model.cuda()
-
-  model = torch.nn.DataParallel(model)
-  model.train()
   
+  model.train()
+  model.module.freeze_bn()
   #optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, momentum=cfg.TRAIN.MOMENTUM, weight_decay=0.00005)
   optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=0.00005)
   #lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.1, patience=60, verbose=True,mode="max")
@@ -78,8 +84,7 @@ def main():
       lr_decay_step = milestones[index]
       adjust_learning_rate(optimizer, 0.1)
 
-    for iters in range(0, iters_per_epoch):
-      model.train() 
+    for iters in range(0, iters_per_epoch):      
       start_iter = iters * batch_szie
       end_iter = start_iter + batch_szie
       if end_iter > sample_size:
@@ -95,9 +100,10 @@ def main():
       if use_gpu:
         gt_tensor = gt_tensor.cuda()
         im_blobs_tensor = im_blobs_tensor.cuda()
-        im_info_tensor = im_blobs_tensor.cuda()
+        im_info_tensor = im_info_tensor.cuda()
 
-      optimizer.zero_grad()      
+      optimizer.zero_grad()
+      model.module.freeze_bn()      
       _, _, _, rpn_loss_cls, \
       rpn_loss_bbox, loss_cls, loss_bbox, _ = model(im_blobs_tensor, im_info_tensor, gt_tensor)
 

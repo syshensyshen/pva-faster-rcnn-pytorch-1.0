@@ -17,6 +17,11 @@ import pdb
 from models.smoothl1loss import _smooth_l1_loss
 
 class pva_faster_rcnn(nn.Module):
+    def freeze_bn(self):
+        '''Freeze BatchNorm layers.'''
+        for layer in self.modules():
+            if isinstance(layer, nn.BatchNorm2d):
+                layer.eval() 
     """ faster RCNN """
     def __init__(self, classes, class_agnostic):
         super(pva_faster_rcnn, self).__init__()
@@ -26,9 +31,11 @@ class pva_faster_rcnn(nn.Module):
         # loss
         self.RCNN_loss_cls = 0
         self.RCNN_loss_bbox = 0
+        self.rcnn_din = 4096
+        self.rpn_din = 512
 
         # define rpn
-        self.RCNN_rpn = _RPN(self.dout_base_model)
+        self.RCNN_rpn = _RPN(self.dout_base_model, self.rpn_din)
         self.RCNN_proposal_target = _ProposalTargetLayer(self.n_classes)
 
         # self.RCNN_roi_pool = _RoIPooling(cfg.POOLING_SIZE, cfg.POOLING_SIZE, 1.0/16.0)
@@ -37,9 +44,9 @@ class pva_faster_rcnn(nn.Module):
         self.RCNN_roi_pool = ROIPoolingLayer((cfg.POOLING_SIZE, cfg.POOLING_SIZE), 1.0/16.0)
         self.RCNN_roi_align = ROIAlignLayer((cfg.POOLING_SIZE, cfg.POOLING_SIZE), 1.0/16.0, 0)
         self.RCNN_top = nn.Sequential(OrderedDict([
-            ('fc6',nn.Linear(544 * 6 * 6, 512)),
+            ('fc6',nn.Linear(self.dout_base_model * cfg.POOLING_SIZE * cfg.POOLING_SIZE, self.rcnn_din)),
             ('fc6_relu', nn.ReLU(inplace=True)),
-            ('fc7', nn.Linear(512, 512, bias=True)),
+            ('fc7', nn.Linear(self.rcnn_din, self.rcnn_din, bias=True)),
             ('fc7_relu', nn.ReLU(inplace=True))]))
 
     def forward(self, im_data, im_info, gt_boxes):

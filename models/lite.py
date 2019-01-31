@@ -248,7 +248,7 @@ class PVALiteFeat(nn.Module):
 
 class liteHyper(PVALiteFeat):
     def __init__(self):
-        super(liteHyper, self).__init__()
+        PVALiteFeat.__init__(self)
         initvars(self.modules())
     def forward(self, input):
         x1 = self.conv1(input) # 1/2 feature
@@ -276,6 +276,8 @@ class lite_faster_rcnn(pva_faster_rcnn):
       self.pretrained = pretrained
       self.class_agnostic = class_agnostic
       pva_faster_rcnn.__init__(self, classes, class_agnostic)
+      self.rcnn_din = 512
+      self.rpn_din = 256
 
   def _init_modules(self):
     lite = liteHyper()
@@ -285,12 +287,12 @@ class lite_faster_rcnn(pva_faster_rcnn):
 
     self.RCNN_base = lite
     
-    self.RCNN_cls_score = nn.Linear(512, self.n_classes)
+    self.RCNN_cls_score = nn.Linear(self.rcnn_din, self.n_classes)
 
     if self.class_agnostic:
-      self.RCNN_bbox_pred = nn.Linear(512, 4)
+      self.RCNN_bbox_pred = nn.Linear(self.rcnn_din, 4)
     else:
-      self.RCNN_bbox_pred = nn.Linear(512, 4 * self.n_classes)
+      self.RCNN_bbox_pred = nn.Linear(self.rcnn_din, 4 * self.n_classes)
 
   def _head_to_tail(self, pool5):
     
