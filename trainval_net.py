@@ -63,7 +63,10 @@ def main():
     model = pva_net(args.classes, pretrained=True)
   model.create_architecture()
   device_id = [ int(elem) for elem in args.gpus if elem != ',']
-  model = torch.nn.DataParallel(model, device_ids=device_id)
+  if len(device_id) > 1:
+    model = torch.nn.DataParallel(model, device_ids=device_id)
+  else:
+    model = torch.nn.DataParallel(model)
   use_gpu = True
   if use_gpu:
     model = model.cuda()
@@ -119,12 +122,7 @@ def main():
 
       if iters % display == 0:
         if iters > 0:
-          loss_temp /= display  
-        
-        #rpn_loss_cls  = 0
-        #rpn_loss_bbox = 0
-        #loss_cls      = 0
-        #loss_bbox     = 0
+          loss_temp /= display 
 
         if len(device_id) > 1:
           rpn_loss_cls = rpn_loss_cls.mean().item()
