@@ -44,9 +44,9 @@ class pva_faster_rcnn(nn.Module):
         self.RCNN_roi_pool = ROIPoolingLayer((cfg.POOLING_SIZE, cfg.POOLING_SIZE), 1.0/16.0)
         self.RCNN_roi_align = ROIAlignLayer((cfg.POOLING_SIZE, cfg.POOLING_SIZE), 1.0/16.0, 0)
         self.RCNN_top = nn.Sequential(OrderedDict([
-            ('fc6_new',nn.Linear(self.dout_base_model * cfg.POOLING_SIZE * cfg.POOLING_SIZE, self.rcnn_din)),
+            ('fc6',nn.Linear(self.dout_base_model * cfg.POOLING_SIZE * cfg.POOLING_SIZE, self.rcnn_din)),
             ('fc6_relu', nn.ReLU(inplace=True)),
-            ('fc7_new', nn.Linear(self.rcnn_din, self.rcnn_din, bias=True)),
+            ('fc7', nn.Linear(self.rcnn_din, self.rcnn_din, bias=True)),
             ('fc7_relu', nn.ReLU(inplace=True))]))
 
     def forward(self, im_data, im_info, gt_boxes):

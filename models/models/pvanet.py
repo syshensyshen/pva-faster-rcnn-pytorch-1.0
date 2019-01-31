@@ -412,9 +412,9 @@ class pva_net(pva_faster_rcnn):
       self.dout_base_model = 768
       self.pretrained = pretrained
       self.class_agnostic = class_agnostic
+      pva_faster_rcnn.__init__(self, classes, class_agnostic)
       self.rcnn_din = 512
-      self.rpn_din = 256
-      pva_faster_rcnn.__init__(self, classes, class_agnostic)           
+      self.rpn_din = 256      
 
   def _init_modules(self):
     pva = pvaHyper()
@@ -422,13 +422,7 @@ class pva_net(pva_faster_rcnn):
     if self.pretrained:
         print("Loading pretrained weights from %s" %(self.model_path))
         checkpoint = torch.load(self.model_path)
-        pretrained_dict = checkpoint['state_dict']
-        model_dict = pva.state_dict()
-        #filter out unnecessary keys 
-        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
-        model_dict.update(pretrained_dict)
-        pva.load_state_dict(model_dict)
-
+        pva.load_state_dict(checkpoint['state_dict'])
 
     self.RCNN_base = pva
     

@@ -11,31 +11,28 @@ from lib.rpn.rpn_regression import _RPN
 from collections import OrderedDict
 from lib.roi_layers.roi_align_layer import ROIAlignLayer
 from lib.roi_layers.roi_pooling_layer import ROIPoolingLayer
+
+# from model.roi_pooling.modules.roi_pool import _RoIPooling
+# from model.roi_align.modules.roi_align import RoIAlignAvg
+
 from lib.rpn.proposal_target_layer import _ProposalTargetLayer
 import time
 import pdb
 from models.smoothl1loss import _smooth_l1_loss
 
-class pva_faster_rcnn(nn.Module):
-    def freeze_bn(self):
-        '''Freeze BatchNorm layers.'''
-        for layer in self.modules():
-            if isinstance(layer, nn.BatchNorm2d):
-                layer.eval() 
+class _fasterRCNN(nn.Module):
     """ faster RCNN """
     def __init__(self, classes, class_agnostic):
-        super(pva_faster_rcnn, self).__init__()
-        #self.classes = classes
-        self.n_classes = classes
+        super(_fasterRCNN, self).__init__()
+        self.classes = classes
+        self.n_classes = len(classes)
         self.class_agnostic = class_agnostic
         # loss
         self.RCNN_loss_cls = 0
         self.RCNN_loss_bbox = 0
-        self.rcnn_din = 4096
-        self.rpn_din = 512
 
         # define rpn
-        self.RCNN_rpn = _RPN(self.dout_base_model, self.rpn_din)
+        self.RCNN_rpn = _RPN(self.dout_base_model)
         self.RCNN_proposal_target = _ProposalTargetLayer(self.n_classes)
 
         # self.RCNN_roi_pool = _RoIPooling(cfg.POOLING_SIZE, cfg.POOLING_SIZE, 1.0/16.0)
@@ -43,28 +40,23 @@ class pva_faster_rcnn(nn.Module):
 
         self.RCNN_roi_pool = ROIPoolingLayer((cfg.POOLING_SIZE, cfg.POOLING_SIZE), 1.0/16.0)
         self.RCNN_roi_align = ROIAlignLayer((cfg.POOLING_SIZE, cfg.POOLING_SIZE), 1.0/16.0, 0)
-        self.RCNN_top = nn.Sequential(OrderedDict([
-            ('fc6_new',nn.Linear(self.dout_base_model * cfg.POOLING_SIZE * cfg.POOLING_SIZE, self.rcnn_din)),
-            ('fc6_relu', nn.ReLU(inplace=True)),
-            ('fc7_new', nn.Linear(self.rcnn_din, self.rcnn_din, bias=True)),
-            ('fc7_relu', nn.ReLU(inplace=True))]))
 
-    def forward(self, im_data, im_info, gt_boxes):
+    def forward(self, im_data, im_info, gt_boxes, num_boxes):
         batch_size = im_data.size(0)
 
         im_info = im_info.data
         gt_boxes = gt_boxes.data
-        #num_boxes = num_boxes.data
+        num_boxes = num_boxes.data
 
         # feed image data to base model to obtain base feature map
         base_feat = self.RCNN_base(im_data)
         #print(base_feat.shape)
         # feed base feature map tp RPN to obtain rois
-        rois, rpn_loss_cls, rpn_loss_bbox = self.RCNN_rpn(base_feat, im_info, gt_boxes)
+        rois, rpn_loss_cls, rpn_loss_bbox = self.RCNN_rpn(base_feat, im_info, gt_boxes, num_boxes)
 
         # if it is training phrase, then use ground trubut bboxes for refining
         if self.training:
-            roi_data = self.RCNN_proposal_target(rois, gt_boxes)
+            roi_data = self.RCNN_proposal_target(rois, gt_boxes, num_boxes)
             rois, rois_label, rois_target, rois_inside_ws, rois_outside_ws = roi_data
 
             rois_label = Variable(rois_label.view(-1).long())
@@ -89,15 +81,14 @@ class pva_faster_rcnn(nn.Module):
 
         # feed pooled features to top model
         pooled_feat = self._head_to_tail(pooled_feat)
-        #print(self.training)
 
         # compute bbox offset
         bbox_pred = self.RCNN_bbox_pred(pooled_feat)
-        #if self.training and not self.class_agnostic:
-        #    # select the corresponding columns according to roi labels
-        #    bbox_pred_view = bbox_pred.view(bbox_pred.size(0), int(bbox_pred.size(1) / 4), 4)
-        #    bbox_pred_select = torch.gather(bbox_pred_view, 1, rois_label.view(rois_label.size(0), 1, 1).expand(rois_label.size(0), 1, 4))
-        #    bbox_pred = bbox_pred_select.squeeze(1)
+        if self.training and not self.class_agnostic:
+            # select the corresponding columns according to roi labels
+            bbox_pred_view = bbox_pred.view(bbox_pred.size(0), int(bbox_pred.size(1) / 4), 4)
+            bbox_pred_select = torch.gather(bbox_pred_view, 1, rois_label.view(rois_label.size(0), 1, 1).expand(rois_label.size(0), 1, 4))
+            bbox_pred = bbox_pred_select.squeeze(1)
 
         # compute object classification probability
         cls_score = self.RCNN_cls_score(pooled_feat)
@@ -116,15 +107,8 @@ class pva_faster_rcnn(nn.Module):
 
         cls_prob = cls_prob.view(batch_size, rois.size(1), -1)
         bbox_pred = bbox_pred.view(batch_size, rois.size(1), -1)
-        #print(rois.shape)
-        #for index in range(0, 300):
-        #    if cls_prob[:,index,0] < 0.5:
-        #        print(cls_prob[:,index,:], rois[:,index,:])
-        #print(bbox_pred)
-        if self.training:
-            return rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_bbox, RCNN_loss_cls, RCNN_loss_bbox, rois_label
-        else:
-            return rois, cls_prob, bbox_pred
+
+        return rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_bbox, RCNN_loss_cls, RCNN_loss_bbox, rois_label
 
     def _init_weights(self):
         def normal_init(m, mean, stddev, truncated=False):
