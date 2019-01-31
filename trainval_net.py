@@ -57,10 +57,12 @@ def main():
   sample_size = len(xmls)
   batch_szie = args.batch_size
   iters_per_epoch = int(np.floor(sample_size / batch_szie))
+  pretrained = True
   if 'lite' in args.network:
-    model = lite_faster_rcnn(args.classes)
+    pretrained = False
+    model = lite_faster_rcnn(args.classes, pretrained=pretrained)
   if 'pva' in args.network:
-    model = pva_net(args.classes, pretrained=True)
+    model = pva_net(args.classes, pretrained=pretrained)
   model.create_architecture()
   device_id = [ int(elem) for elem in args.gpus if elem != ',']
   if len(device_id) > 1:
@@ -72,7 +74,8 @@ def main():
     model = model.cuda()
   
   model.train()
-  model.module.freeze_bn()
+  if pretrained:
+    model.module.freeze_bn()
   #optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, momentum=cfg.TRAIN.MOMENTUM, weight_decay=0.00005)
   optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=0.00005)
   #lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.1, patience=60, verbose=True,mode="max")
@@ -109,7 +112,8 @@ def main():
         im_info_tensor = im_info_tensor.cuda()
 
       optimizer.zero_grad()
-      model.module.freeze_bn()      
+      if pretrained:
+        model.module.freeze_bn()      
       _, _, _, rpn_loss_cls, \
       rpn_loss_bbox, loss_cls, loss_bbox, _ = model(im_blobs_tensor, im_info_tensor, gt_tensor)
 
