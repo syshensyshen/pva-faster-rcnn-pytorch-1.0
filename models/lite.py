@@ -275,9 +275,9 @@ class lite_faster_rcnn(pva_faster_rcnn):
       self.dout_base_model = 544
       self.pretrained = pretrained
       self.class_agnostic = class_agnostic
-      pva_faster_rcnn.__init__(self, classes, class_agnostic)
       self.rcnn_din = 512
       self.rpn_din = 256
+      pva_faster_rcnn.__init__(self, classes, class_agnostic)      
 
   def _init_modules(self):
     lite = liteHyper()
