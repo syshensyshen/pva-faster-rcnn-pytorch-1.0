@@ -19,6 +19,7 @@ from lib.rpn.bbox_transform import clip_boxes
 from lib.datasets.pascal_voc import prepareBatchData
 import os
 from models.lite import lite_faster_rcnn
+from models.pvanet import pva_net
 from models.config import cfg
 from tools.net_utils import get_current_lr
 from collections import OrderedDict
@@ -29,10 +30,10 @@ from lib.roi_layers.nms import nms
 from models.config import cfg
 import cv2
 
-#PIXEL_MEANS = np.array([[[0.485, 0.456, 0.406]]])
-PIXEL_MEANS = np.array([[[102.9801, 115.9465, 122.7717]]])
-#PIXEL_STDS = np.array([[[0.229, 0.224, 0.225]]])
-PIXEL_STDS = np.array([[[1.0, 1.0, 1.0]]])
+PIXEL_MEANS = np.array([[[0.485, 0.456, 0.406]]])
+#PIXEL_MEANS = np.array([[[102.9801, 115.9465, 122.7717]]])
+PIXEL_STDS = np.array([[[0.229, 0.224, 0.225]]])
+#PIXEL_STDS = np.array([[[1.0, 1.0, 1.0]]])
 thresh = 0.8
 nms_thresh = 0.3
 classes = 6
@@ -44,6 +45,8 @@ def parse_args():
   parser.add_argument('--model', default = "./save_models/phone__019.ckpt",help='model')
   parser.add_argument('--img_path', default = "/data/ssy/front_parts/VOC2007/JPEGImages/",help='Path to containing images')
   parser.add_argument('--save_dir', default='./', type=str)
+  parser.add_argument('--network', default='lite', type=str)
+  parser.add_argument('--classes', default=21, type=int)
 
   args = parser.parse_args()
   return args
@@ -58,7 +61,7 @@ def prepareTestData(target_size, im, SCALE_MULTIPLE_OF, MAX_SIZE):
   im_scale_y = float(height) / float(im.shape[0])
   im = cv2.resize(im, (width, height), interpolation=cv2.INTER_LINEAR)  
   im_scale = np.array([np.hstack((height, width, im_scale_x, im_scale_y))], dtype=np.float32)
-  im = im.astype(np.float32)
+  im = im.astype(np.float32) / 255
   im = (im - PIXEL_MEANS) / PIXEL_STDS
   im_blob = im_list_to_blob(im)
   im_blobs[0,:,:,:] =im_blob 
@@ -146,8 +149,12 @@ def main():
   save_dir = args.save_dir
   if not os.path.isdir(save_dir):
     os.mkdir(save_dir)
+  
+  if 'lite' in args.network:
+    model = lite_faster_rcnn(args.classes)
+  elif 'pva' in args.network:
+    model = pva_net(args.classes)
 
-  model = lite_faster_rcnn(classes)
   checkpoint = torch.load(args.model)
   model.create_architecture()
   model.load_state_dict(checkpoint['state_dict'])  
