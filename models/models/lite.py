@@ -29,6 +29,45 @@ class ConvBn(nn.Module):
     def forward(self, input):
         return self.conv(input)
 
+class DilationConvBn(nn.Module):
+    def __init__(self, in_feature, out_feature, kernel_size, stride=1,
+                 padding=0, dilation=1, groups=1, bias=True):
+        super(DilationConvBn, self).__init__()
+        self.padding = []
+        if isinstance(dilation):
+            for dilate in dilation:
+                self.padding.append(dilate*(kernel_size-1))
+        else:
+            self.padding = dilation*(kernel_size - 1)
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_feature, out_feature, kernel_size=kernel_size,
+                      stride=stride, padding=self.padding, dilation=dilation,
+                      groups=groups, bias=bias),
+            nn.BatchNorm2d(out_feature),
+            nn.ReLU(inplace=True))
+    def forward(self, input):
+        return self.conv(input)
+
+class DilationInceptionNoStride(nn.Module):
+    def __init__(self, dilation, din, dims): # dims: 3 dims, like this:[4,8,16]
+        super(DilationInceptionNoStride, self).__init__()
+        self.branch11 = ConvBn(din, dims[0], kernel_size=1)
+        self.branch12 = DilationConvBn(dims[0], dims[1], kernel_size=3, dilation=dilation[0])
+        self.branch13 = ConvBn(dims[1], dims[2], kernel_size=3)
+        self.branch21 = ConvBn(din, dims[0], kernel_size=1)
+        self.branch22 = DilationConvBn(dims[0], dims[1], kernel_size=3, dilation=dilation[1])
+        self.branch31 = nn.MaxPool2d(kernel_size=3, stride=1, padding=1)
+        self.branch32 = ConvBn(din, dims[1], kernel_size=1)
+    def forward(self, input):
+        left = self.branch11(input)
+        left = self.branch12(left)
+        left = self.branch13(left)
+        midle = self.branch21(input)
+        midle = self.branch22(midle)
+        right = self.branch31(input)
+        right = self.branch32(right)
+        return torch.cat((left, midle, right), 1)
+
 class Inception3a(nn.Module):
     def __init__(self):
         super(Inception3a, self).__init__()
