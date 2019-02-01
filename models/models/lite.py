@@ -68,6 +68,26 @@ class DilationInceptionNoStride(nn.Module):
         right = self.branch32(right)
         return torch.cat((left, midle, right), 1)
 
+class DilationInceptionStride(nn.Module):
+    def __init__(self, dilation, din, dims): # dims: 3 dims, like this:[4,8,16]
+        super(DilationInceptionStride, self).__init__()
+        self.branch11 = ConvBn(din, dims[0], kernel_size=1, stride=2)
+        self.branch12 = DilationConvBn(dims[0], dims[1], kernel_size=3, dilation=dilation[0])
+        self.branch13 = ConvBn(dims[1], dims[2], kernel_size=3)
+        self.branch21 = ConvBn(din, dims[0], kernel_size=1, stride=2)
+        self.branch22 = DilationConvBn(dims[0], dims[1], kernel_size=3, dilation=dilation[1])
+        self.branch31 = nn.MaxPool2d(kernel_size=3, stride=1, padding=1)
+        self.branch32 = ConvBn(din, dims[1], kernel_size=1, stride=2)
+    def forward(self, input):
+        left = self.branch11(input)
+        left = self.branch12(left)
+        left = self.branch13(left)
+        midle = self.branch21(input)
+        midle = self.branch22(midle)
+        right = self.branch31(input)
+        right = self.branch32(right)
+        return torch.cat((left, midle, right), 1)
+
 class Inception3a(nn.Module):
     def __init__(self):
         super(Inception3a, self).__init__()
