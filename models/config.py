@@ -291,10 +291,12 @@ __C.POOLING_SIZE = 6
 __C.MAX_NUM_GT_BOXES = 20
 
 # Anchor scales for RPN
-__C.ANCHOR_SCALES = [8,16,32]
+#__C.ANCHOR_SCALES = [8,16,32]
+__C.ANCHOR_SCALES = [2, 3, 5, 9, 16, 32]
 
 # Anchor ratios for RPN
-__C.ANCHOR_RATIOS = [0.5,1,2]
+#__C.ANCHOR_RATIOS = [0.5,1,2]
+__C.ANCHOR_RATIOS = [0.333, 0.5, 0.667, 1.0, 1.5, 2.0, 3]
 
 # Feature stride for RPN
 __C.FEAT_STRIDE = [16]

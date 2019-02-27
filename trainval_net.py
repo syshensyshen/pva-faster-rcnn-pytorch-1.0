@@ -17,6 +17,7 @@ import torch.optim as optim
 import torchvision.transforms as transforms
 from lib.datasets.pascal_voc import prepareBatchData
 import os
+import random
 #from models.model import network
 from models.config import cfg
 from tools.net_utils import get_current_lr
@@ -24,6 +25,7 @@ from collections import OrderedDict
 from tools.net_utils import adjust_learning_rate
 from models.lite import lite_faster_rcnn
 from models.pvanet import pva_net
+from models.resnet import resnethyper, resnet, resnet_pva
 #os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
 def parse_args():
@@ -63,6 +65,10 @@ def main():
     model = lite_faster_rcnn(args.classes, pretrained=pretrained)
   if 'pva' in args.network:
     model = pva_net(args.classes, pretrained=pretrained)
+  if 'resnet' in args.network:
+    model = resnet(args.classes, num_layers=101, pretrained=pretrained)
+  if 'resnet_pva' in args.network:
+    model = resnet_pva(args.classes, pretrained=True)
   model.create_architecture()
   device_id = [ int(elem) for elem in args.gpus if elem != ',']
   if len(device_id) > 1:
@@ -74,7 +80,7 @@ def main():
     model = model.cuda()
   
   model.train()
-  if pretrained:
+  if pretrained and 'lite' in args.network:
     model.module.freeze_bn()
   #optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, momentum=cfg.TRAIN.MOMENTUM, weight_decay=0.00005)
   optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=0.00005)
@@ -82,11 +88,13 @@ def main():
   #lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, patience=15, verbose=True,mode="max")
   #lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=40, gamma=0.1)
   #lr_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[62, 102, 132, 145], gamma=0.1)
-  milestones=[62, 102, 132, 145]
+  milestones=[200, 500, 600, 1000]
   index = 0
   lr_decay_step = milestones[index] 
 
   for epoch in range(0, args.epochs):
+    if epoch % 20 == 0 and epoch != 0:
+        random.shuffle(xmls)
     loss_temp = 0
     if epoch > lr_decay_step:
       index += 1
@@ -112,7 +120,7 @@ def main():
         im_info_tensor = im_info_tensor.cuda()
 
       optimizer.zero_grad()
-      if pretrained:
+      if pretrained and 'lite' in args.network:
         model.module.freeze_bn()      
       _, _, _, rpn_loss_cls, \
       rpn_loss_bbox, loss_cls, loss_bbox, _ = model(im_blobs_tensor, im_info_tensor, gt_tensor)
@@ -141,17 +149,17 @@ def main():
 
         current_lr = get_current_lr(optimizer)   
 
-        print("[epoch %2d][iter %4d/%4d] loss: %.4f lr: %.4f" \
+        print("[epoch %2d][iter %4d/%4d] loss: %.4f lr: %.8f" \
                                 % (epoch, iters, iters_per_epoch, loss_temp, current_lr))
         print("\t\t\trpn_cls: %.4f, rpn_box: %.4f, rcnn_cls: %.4f, rcnn_box %.4f" \
                       % (rpn_loss_cls, rpn_loss_bbox, loss_cls, loss_bbox))
     state_dict = model.module.state_dict()
-    if epoch > 3:
+    if epoch!=0 and epoch%30==0:
       torch.save({
       'epoch': epoch,
       'save_dir': save_dir,
       'state_dict': state_dict},
-      os.path.join(save_dir, 'phone_' + '_%03d.ckpt' % epoch))
+      os.path.join(save_dir, 'hh_' + '%04d.ckpt' % epoch))
 
 if __name__ == "__main__":
   main()
