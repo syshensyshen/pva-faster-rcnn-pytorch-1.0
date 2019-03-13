@@ -371,8 +371,8 @@ class resnet_pva(pva_faster_rcnn):
       self.dout_base_model = 1024
       self.pretrained = pretrained
       self.class_agnostic = class_agnostic
-      self.rcnn_din = 1024
-      self.rpn_din = 512
+      self.rcnn_din = 512
+      self.rpn_din = 384
       self.num_layers = num_layers
       self.block = block
       pva_faster_rcnn.__init__(self, classes, class_agnostic) 
@@ -388,7 +388,7 @@ class resnet_pva(pva_faster_rcnn):
       if self.pretrained:
         model.load_state_dict(model_zoo.load_url(model_urls['resnet34'], model_dir='/home/user/.torch/models/'), strict=False)
     elif self.num_layers==50:
-      model = resnethyper(self.n_classes, self.block [3, 4, 6, 3])
+      model = resnethyper(self.n_classes, self.block, [3, 4, 6, 3])
       if self.pretrained:
         model.load_state_dict(model_zoo.load_url(model_urls['resnet50'], model_dir='/home/user/.torch/models/'), strict=False)
     elif self.num_layers==101:

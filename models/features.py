@@ -67,7 +67,7 @@ class DilatedPyramidFeaturesEx(nn.Module):
         P3_x = P3_x + P4_upsampled_x
         P3_x = self.P3_2(P3_x)
 
-        P2_x = self.P3_1(C2)
+        P2_x = self.P2_1(C2)
         P2_x = P2_x + P3_upsampled_x
         P2_x = self.P2_2(P2_x)
 
@@ -194,3 +194,168 @@ class PyramidFeatures(nn.Module):
         P2_x = self.P3_2(P2_x)
 
         return [P2_x, P3_x, P4_x, P5_x]
+
+'''
+# author: syshen 
+# date  : 2019/02/28
+'''
+
+class hyper_features(nn.Module):
+    def __init__(self, down_channels):
+        super(hyper_features,self).__init__()
+        self.downsample = nn.Conv2d(down_channels, down_channels, kernel_size=3, stride=2, padding=1)
+    def forward(self, ims):
+        down=self.downsample(ims[0])
+        up=F.interpolate(ims[2], scale_factor=2, mode="nearest")
+        
+        return torch.cat((down, up, ims[1]), 1)
+
+class resnethyper(nn.Module):
+    def __init__(self, num_classes, block, layers):
+        self.inplanes = 64
+        super(resnethyper, self).__init__()
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.layer1 = self._make_layer(block, 64, layers[0])
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
+
+        if block == 'BasicBlock':
+            self.fpn_sizes = [self.layer1[layers[0]-1].conv2.out_channels, self.layer2[layers[1]-1].conv2.out_channels, self.layer3[layers[2]-1].conv2.out_channels, self.layer4[layers[3]-1].conv2.out_channels]
+        elif block == 'Bottleneck':
+            self.fpn_sizes = [self.layer1[layers[0]-1].conv3.out_channels, self.layer2[layers[1]-1].conv3.out_channels, self.layer3[layers[2]-1].conv3.out_channels, self.layer4[layers[3]-1].conv3.out_channels]
+
+        self.fpn = DilatedPyramidFeaturesEx(self.fpn_sizes[0], self.fpn_sizes[1], self.fpn_sizes[2], self.fpn_sizes[3])
+        self.downx2 = nn.Conv2d(256, 256, kernel_size=3, stride=4)
+        self.downx3 = nn.Conv2d(256, 256, kernel_size=3, stride=2)
+                
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2. / n))
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+
+        self.freeze_bn()
+
+    def _make_layer(self, block, planes, blocks, stride=1):
+        downsample = None
+        if stride != 1 or self.inplanes != planes * block.expansion:
+            downsample = nn.Sequential(
+                nn.Conv2d(self.inplanes, planes * block.expansion,
+                          kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm2d(planes * block.expansion),
+            )
+
+        layers = []
+        layers.append(block(self.inplanes, planes, stride, downsample))
+        self.inplanes = planes * block.expansion
+        for i in range(1, blocks):
+            layers.append(block(self.inplanes, planes))
+
+        return nn.Sequential(*layers)
+
+    def freeze_bn(self):
+        '''Freeze BatchNorm layers.'''
+        for layer in self.modules():
+            if isinstance(layer, nn.BatchNorm2d):
+                layer.eval()
+
+    def forward(self, img_batch):
+
+        x = self.conv1(img_batch)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+
+        x1 = self.layer1(x)
+        x2 = self.layer2(x1)
+        x3 = self.layer3(x2)
+        x4 = self.layer4(x3)
+        #print(x1.shape, x2.shape, x3.shape, x4.shape)
+        features = self.fpn([x1, x2, x3, x4])
+
+        d2 = self.downx2(features[0])
+        d3 = self.downx3(features[1])
+        up5 = F.interpolate(features[3], scale_factor=2, mode="nearest")
+
+        feat_ = torch.cat((d2, d3, features[2], up5), 1)
+
+        return feat_
+
+class resnethyperex(nn.Module):
+    def __init__(self, num_classes, block, layers):
+        self.inplanes = 64
+        super(resnethyperex, self).__init__()
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.layer1 = self._make_layer(block, 64, layers[0])
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
+
+        if block == 'BasicBlock':
+            self.fpn_sizes = [self.layer1[layers[0]-1].conv2.out_channels, self.layer2[layers[1]-1].conv2.out_channels, self.layer3[layers[2]-1].conv2.out_channels, self.layer4[layers[3]-1].conv2.out_channels]
+        elif block == 'Bottleneck':
+            self.fpn_sizes = [self.layer1[layers[0]-1].conv3.out_channels, self.layer2[layers[1]-1].conv3.out_channels, self.layer3[layers[2]-1].conv3.out_channels, self.layer4[layers[3]-1].conv3.out_channels]
+
+        self.fpn = PyramidFeatures(self.fpn_sizes[0], self.fpn_sizes[1], self.fpn_sizes[2], self.fpn_sizes[3])
+        self.hyper_features = hyper_features(256)
+                
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2. / n))
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+
+        self.freeze_bn()
+
+    def _make_layer(self, block, planes, blocks, stride=1):
+        downsample = None
+        if stride != 1 or self.inplanes != planes * block.expansion:
+            downsample = nn.Sequential(
+                nn.Conv2d(self.inplanes, planes * block.expansion,
+                          kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm2d(planes * block.expansion),
+            )
+
+        layers = []
+        layers.append(block(self.inplanes, planes, stride, downsample))
+        self.inplanes = planes * block.expansion
+        for i in range(1, blocks):
+            layers.append(block(self.inplanes, planes))
+
+        return nn.Sequential(*layers)
+
+    def freeze_bn(self):
+        '''Freeze BatchNorm layers.'''
+        for layer in self.modules():
+            if isinstance(layer, nn.BatchNorm2d):
+                layer.eval()
+
+    def forward(self, img_batch):
+
+        x = self.conv1(img_batch)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+
+        x1 = self.layer1(x)
+        x2 = self.layer2(x1)
+        x3 = self.layer3(x2)
+        x4 = self.layer4(x3)
+        #print(x1.shape, x2.shape, x3.shape, x4.shape)
+        features = self.fpn([x1, x2, x3, x4])
+
+        feat_1 = self.hyper_features([features[0], features[1], features[2]])
+        feat_2 = self.hyper_features([features[1], features[2], features[3]])
+
+        return [feat_1, feat_2]
