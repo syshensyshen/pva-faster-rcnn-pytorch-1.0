@@ -301,6 +301,16 @@ __C.ANCHOR_RATIOS = [0.333, 0.5, 0.667, 1.0, 1.5, 2.0, 3]
 # Feature stride for RPN
 __C.FEAT_STRIDE = [16]
 
+__C.FEAT_STRIDES = [16]
+
+# Anchor scales for RPN_FPN
+#__C.FPN_ANCHOR_SCALES = [32, 64, 128, 256, 512]
+__C.FPN_ANCHOR_SCALES = [[8, 16],[32, 64], [128, 256], [256, 512], [512, 1024]]
+# Feature stride for RPN_FPN
+__C.FPN_FEAT_STRIDES = [4, 8, 16, 32, 64]
+# Anchor stride for RPN_FPN
+__C.FPN_ANCHOR_STRIDE = 1
+
 __C.CUDA = False
 
 __C.CROP_RESIZE_WITH_MAX_POOL = True

@@ -1,6 +1,6 @@
 '''
 author: syshen
-date: 2019/01/28-01/30
+date: 2019/02/20
 '''
 import os
 import sys
@@ -32,25 +32,16 @@ import cv2
 from models.resnet import resnet
 
 PIXEL_MEANS = np.array([[[0.485, 0.456, 0.406]]])
-#PIXEL_MEANS = np.array([[[102.9801, 115.9465, 122.7717]]])
 PIXEL_STDS = np.array([[[0.229, 0.224, 0.225]]])
-#PIXEL_STDS = np.array([[[1.0, 1.0, 1.0]]])
-thresh = 0.6
-nms_thresh = 0.25
-#classes = 9
-def parse_args():
-  """
-  Parse input arguments
-  """
-  parser     = argparse.ArgumentParser(description='Simple training script for training a RetinaNet network.')
-  parser.add_argument('--model', default = "./save_models/phone__019.ckpt",help='model')
-  parser.add_argument('--img_path', default = "/data/ssy/front_parts/VOC2007/JPEGImages/",help='Path to containing images')
-  parser.add_argument('--save_dir', default='./', type=str)
-  parser.add_argument('--network', default='lite', type=str)
-  parser.add_argument('--classes', default=21, type=int)
+class_list = ('__background__', 'object_1', 'object_2', 'object_3', 'object_4', 'object_5', \
+              'object_6', 'object_7','object_8', 'object_9', 'object_10', 'object_11', 'object_12', \
+              'object_13', 'object_14', 'object_15', 'object_16', 'object_17', 'object_18', 'object_19', \
+              'object_20', 'object_21', 'object_22', 'object_23', 'object_24', 'object_25', 'object_26', \
+              'object_27', 'object_28', 'object_29', 'object_30', 'object_31', 'object_32' \
+              'object_33', 'object_34', 'object_35', 'object_36', 'object_37', 'object_38', \
+              'object_39', 'object_40', 'object_41', 'object_42', 'object_43', 'object_44', \
+              'object_45')#, 'object_46', 'object_47','object_48', 'object_49')
 
-  args = parser.parse_args()
-  return args
 
 def prepareTestData(target_size, im, SCALE_MULTIPLE_OF, MAX_SIZE):
   batch_size = 1
@@ -106,12 +97,15 @@ def bbox_transform_inv(boxes, deltas, batch_size, std, mean):
 
     return pred_boxes
 
-def im_detect(data, model, batch_size, std, mean, classes):
+def im_detect(data, model, batch_size, thresh=0.8, nms_thresh=0.25, classes=2):
   gt_tensor = torch.autograd.Variable(torch.from_numpy(data[0]))
   im_blobs_tensor = torch.autograd.Variable(torch.from_numpy(data[1]))
   im_info_tensor = torch.autograd.Variable(torch.from_numpy(data[2]))
   #print(im_info_tensor)
-  results = []
+  std = np.array(cfg.TRAIN.BBOX_NORMALIZE_STDS, dtype=np.float32)
+  mean = np.array(cfg.TRAIN.BBOX_NORMALIZE_MEANS, dtype=np.float32)
+  std = torch.from_numpy(std).cuda()
+  mean = torch.from_numpy(mean).cuda()
   with torch.no_grad():
     rois, cls_prob, bbox_pred = model(im_blobs_tensor.cuda(), \
                                                   im_info_tensor.cuda(), \
@@ -120,7 +114,7 @@ def im_detect(data, model, batch_size, std, mean, classes):
     pred_boxes = bbox_transform_inv(rois[:,:,1:5], bbox_pred, batch_size, std, mean)
     pred_boxes = clip_boxes(pred_boxes, im_info_tensor.data, 1)
     scores = cls_prob
-    #results = []
+    results = []
     #print(rois.shape, scores.shape, rois.shape, bbox_pred.shape, classes)
     for index in range(1, classes):
         cls_scores = scores[0,:,index]
@@ -140,74 +134,49 @@ def im_detect(data, model, batch_size, std, mean, classes):
         bboxes_keep[:,3] /= im_info_tensor[0,3]
         if bboxes_keep.size(0) > 0:
           result = np.zeros((bboxes_keep.size(0), 6), dtype=np.float32)
-          result [:,0:4] = bboxes_keep.cpu()
-          result [:,4] = cls_keep.cpu()
-          result [:,5] = index
-          results.append(result)
+          result[:,0:4] = bboxes_keep.cpu()
+          result[:,4] = cls_keep.cpu()
+          result[:,5] = index
+          results.append(reslut)
   return results
 
-def main():
-  args = parse_args()
-  img_path = args.img_path
-  save_dir = args.save_dir
-  if not os.path.isdir(save_dir):
-    os.mkdir(save_dir)
-  
-  if 'lite' in args.network:
-    model = lite_faster_rcnn(args.classes)
-  elif 'pva' in args.network:
-    model = pva_net(args.classes)
-  elif 'resnet' in args.network:
-      model = resnet(args.classes, num_layers=101)
+def init_model(model_path, num_class, model_name):
+    if 'lite' in model_name:
+        model = lite_faster_rcnn(num_class)
+    elif 'pva' in model_name:
+        model = pva_net(num_class)
+    elif 'resnet' in model_name:
+        model = resnet(num_class, num_layers=101)
+    #model = resnet(num_class, num_layers=101)
+    checkpoint = torch.load(model_path)
+    model.create_architecture()
+    model.load_state_dict(checkpoint['state_dict'])
+    model = model.cuda()
+    model.eval()
+    return model
 
-  checkpoint = torch.load(args.model)
-  model.create_architecture()
-  model.load_state_dict(checkpoint['state_dict'])  
-  model = model.cuda()
+def predict(model, img, batch_size=1, thresh=0.6, nms_thresh=0.25, classes=9):
+    data = prepareBatchData(608, img, 32, 1440)
+    results = im_detect(data, model, batch_size, thresh, nms_thresh, classes)
+    return results
 
-  model = torch.nn.DataParallel(model).cuda()
-  model.eval()
-  imgs = glob(os.path.join(args.img_path, "*.jpg"))  
-  print(args.img_path)
-  batch_size = 1
-  std = np.array(cfg.TRAIN.BBOX_NORMALIZE_STDS, dtype=np.float32)
-  mean = np.array(cfg.TRAIN.BBOX_NORMALIZE_MEANS, dtype=np.float32)
-  std = torch.from_numpy(std).cuda()
-  mean = torch.from_numpy(mean).cuda()
-  
-  for ix, img_name in enumerate(imgs):
-    #print(ix, img_name)
-    im = cv2.imread(img_name)
-    if im is None:
-        continue
-    import time
-    #start_t = time.clock()
-    data = prepareTestData(608, im, 32, 1440)
-    start_t = time.clock()
-    results = im_detect(data, model, batch_size, std, mean, args.classes)
-    end_t = time.clock() 
-    print(ix, img_name, ' time consume is: ', end_t - start_t)
-    draw_img = im.copy()
-    for boxes in results:
-      for box in boxes:
-        x1 = int(box[0])
-        y1 = int(box[1])
-        x2 = int(box[2])
-        y2 = int(box[3])
-        score = float(box[4])
-        label = int(box[5])
-        draw_label = ''
-        if label < 7:
-            draw_label = 'd'
-        else:
-            draw_label = 'd'
-        cv2.rectangle(draw_img, (x1, y1), (x2, y2), (0, 0, 255), 3)
-        w = x2 - x1
-        h = y2 - y1
-        cv2.putText(draw_img, '%.1f'%score+draw_label, (x1+(w>>1), y1+(h>>1)), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
-    name = os.path.basename(img_name)
-    cv2.imwrite(save_dir +'/' + name, draw_img) 
-
-
-if __name__ == "__main__":
-  main()
+def predict(model, img, batch_size=1, thresh=0.6, nms_thresh=0.25, classes=9):
+  data = prepareBatchData(608, img, 32, 1440)
+  results = im_detect(data, model, batch_size, thresh, nms_thresh, classes)
+  predict_ = []
+  for result in results:
+    bbox = result[:,0:4]
+    #score = result[:,4]
+    index = result[:,5]
+    x1 = int(bbox[0])
+    y1 = int(bbox[1])
+    x2 = int(bbox[2])
+    y2 = int(bbox[3])
+    dict_ = {}
+    dict_['label'] = class_list[index]
+    dict_['left'] = x1
+    dict_['top'] = y1
+    dict_['right'] = x2
+    dict_['bottom'] = y2
+    predict_.append(dict_)
+  return predict_

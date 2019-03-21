@@ -1,3 +1,7 @@
+'''
+# author: syshen 
+# date  : 2019/02-2019/03
+'''
 from __future__ import absolute_import
 import torch.nn as nn
 import torch
@@ -147,6 +151,17 @@ class PyramidFeaturesEx(nn.Module):
 
         return [P2_x, P3_x, P4_x, P5_x]
 
+def normal_init(m, mean, stddev, truncated=False):
+    """
+    weight initalizer: truncated normal and random normal.
+    """
+    # x is a parameter
+    if truncated:
+        m.weight.data.normal_().fmod_(2).mul_(stddev).add_(mean) # not a perfect approximation
+    else:
+        m.weight.data.normal_(mean, stddev)
+        m.bias.data.zero_()
+
 class PyramidFeatures(nn.Module):
     def __init__(self, C2_size, C3_size, C4_size, C5_size, feature_size=256):
         super(PyramidFeatures, self).__init__()
@@ -168,6 +183,18 @@ class PyramidFeatures(nn.Module):
         # add P3 elementwise to C2
         self.P2_1 = nn.Conv2d(C2_size, feature_size, kernel_size=1, stride=1, padding=0)
         self.P2_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
+
+        self._init_weights()
+
+    def _init_weights(self):
+        normal_init(self.P2_1, 0, 0.01)
+        normal_init(self.P2_2, 0, 0.01)
+        normal_init(self.P3_1, 0, 0.01)
+        normal_init(self.P3_2, 0, 0.01)
+        normal_init(self.P4_1, 0, 0.01)
+        normal_init(self.P4_2, 0, 0.01)
+        normal_init(self.P5_1, 0, 0.01)
+        normal_init(self.P5_2, 0, 0.01)
 
     def forward(self, inputs):
 
@@ -194,11 +221,6 @@ class PyramidFeatures(nn.Module):
         P2_x = self.P3_2(P2_x)
 
         return [P2_x, P3_x, P4_x, P5_x]
-
-'''
-# author: syshen 
-# date  : 2019/02/28
-'''
 
 class hyper_features(nn.Module):
     def __init__(self, down_channels):
@@ -359,3 +381,4 @@ class resnethyperex(nn.Module):
         feat_2 = self.hyper_features([features[1], features[2], features[3]])
 
         return [feat_1, feat_2]
+

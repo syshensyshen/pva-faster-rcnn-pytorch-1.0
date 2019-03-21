@@ -20,12 +20,6 @@ step2: train
 
 pretrainedmode：链接：https://pan.baidu.com/s/1eLdUheV3FHmsyYs-MQLKBQ 提取码：psnw 
 
-predict：
-CUDA_VISIBLE_DEVICES=0 python predictor.py \
-	--img_path /data/ali-oss/middle-imgs/ \
-	--save_dir ./outputs/ \
-	--network pva --classes 6 \
-	--model ./save_models/****.ckpt
  
 reference code: 
 [jwyang/faster-rcnn.pytorch](https://github.com/jwyang/faster-rcnn.pytorch.git)

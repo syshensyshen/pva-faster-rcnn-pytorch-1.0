@@ -38,6 +38,7 @@ def parse_args():
   parser.add_argument('--img_path', default = "/data/ssy/front_parts/VOC2007/JPEGImages/",help='Path to containing images')
   parser.add_argument('--epochs', help='Number of epochs', type=int, default=1000)
   parser.add_argument('--batch_size', help='batch_size', default=2, type=int)
+  parser.add_argument('--sub_batch', help='sub_batch', default=2, type=int)
   parser.add_argument('--network', default='lite', type=str)
   parser.add_argument('--classes', default=21, type=int)
   parser.add_argument('--save_dir', default='./', type=str)
@@ -51,6 +52,7 @@ def main():
   xml_path = args.xml_path
   img_path = args.img_path
   batch_size = args.batch_size
+  sub_batch = args.sub_batch
   save_dir = args.save_dir
   if not os.path.isdir(save_dir):
     os.mkdir(save_dir)
@@ -95,20 +97,22 @@ def main():
   for epoch in range(0, args.epochs):
     if epoch % 20 == 0 and epoch != 0:
         random.shuffle(xmls)
-    loss_temp = 0
+    loss_temp = 0    
     if epoch > lr_decay_step:
       index += 1
       lr_decay_step = milestones[index]
       adjust_learning_rate(optimizer, 0.1)
 
-    for iters in range(0, iters_per_epoch):      
+    for iters in range(0, iters_per_epoch):            
       start_iter = iters * batch_szie
       end_iter = start_iter + batch_szie
       if end_iter > sample_size:
         end_iter = sample_size
-        start_iter = end_iter - batch_szie + 1
+        start_iter = end_iter - batch_szie
       if end_iter == start_iter:
         start_iter = end_iter - 1
+      optimizer.zero_grad()
+      loss = 0
       xml = xmls[start_iter:end_iter]
       data = prepareBatchData(xml_path, img_path, batch_size, xml)
       gt_tensor = torch.autograd.Variable(torch.from_numpy(data[0]))
@@ -118,15 +122,19 @@ def main():
         gt_tensor = gt_tensor.cuda()
         im_blobs_tensor = im_blobs_tensor.cuda()
         im_info_tensor = im_info_tensor.cuda()
+      for sub in range(int(batch_size / sub_batch)):
+        start_sub = int(sub * batch_size / sub_batch)
+        end_sub = int((sub + 1) * batch_size / sub_batch)
 
-      optimizer.zero_grad()
-      if pretrained and 'lite' in args.network:
-        model.module.freeze_bn()      
-      _, _, _, rpn_loss_cls, \
-      rpn_loss_bbox, loss_cls, loss_bbox, _ = model(im_blobs_tensor, im_info_tensor, gt_tensor)
+        if pretrained and 'lite' in args.network:
+           model.module.freeze_bn()      
+        _, _, _, rpn_loss_cls, \
+        rpn_loss_bbox, loss_cls, loss_bbox, _ = \
+                        model(im_blobs_tensor[start_sub:end_sub, :, :, :], \
+                        im_info_tensor[start_sub:end_sub, :], gt_tensor[start_sub:end_sub, :, :])
 
-      loss = rpn_loss_cls.mean() + rpn_loss_bbox.mean() \
-           + loss_cls.mean() + loss_bbox.mean()
+        loss += (rpn_loss_cls.mean() + rpn_loss_bbox.mean() \
+            + loss_cls.mean() + loss_bbox.mean())
       loss_temp += loss.item()      
       loss.backward()
       optimizer.step()

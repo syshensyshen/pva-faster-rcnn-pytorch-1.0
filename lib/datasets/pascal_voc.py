@@ -15,13 +15,13 @@ import cv2
 import random
 
 #SCALES = (416, 448, 480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800, 832, 864, 896, 928, 960, 992, 1024)
-#SCALES = (480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800, 832, 864)
-SCALES = (576, 608, 640)
-PIXEL_MEANS = np.array([[[102.9801, 115.9465, 122.7717]]])
-#PIXEL_MEANS = np.array([[[0.485, 0.456, 0.406]]])
-#PIXEL_STDS = np.array([[[0.229, 0.224, 0.225]]])
+SCALES = (512, 544, 576, 608, 640, 672, 704, 736, 768, 800, 832)
+#SCALES = (576, 608, 640)
+#PIXEL_MEANS = np.array([[[102.9801, 115.9465, 122.7717]]])
+PIXEL_MEANS = np.array([[[0.485, 0.456, 0.406]]])
+PIXEL_STDS = np.array([[[0.229, 0.224, 0.225]]])
 SCALE_MULTIPLE_OF = 32
-MAX_SIZE = 1440
+MAX_SIZE = 2592
 
 
 #class_list = ('__background__', 'left', 'right', 'top','bottom', 'middle', 'back', 'label', 'lable')
@@ -33,7 +33,10 @@ MAX_SIZE = 1440
 #                         'sheep', 'sofa', 'train', 'tvmonitor',
 #                         'rebar')
 #class_list = ('__background__', 'HM', 'TT')
-class_list = ('__background__', 'left', 'top', 'middle', 'back', 'label')
+#class_list = ('__background__', 'TT','GG','QZ', 'PP','AJ','HM','FC', 'SL')
+class_list = ('__background__', 'TT','GG','QZ', 'PP','AJ','HM','FC', 'HH')
+#class_list = ('__background__', 'left', 'top', 'middle', 'back', 'label')
+#class_list = ('__background__', 'HH')
 class_to_ind = dict(zip(class_list, range(0, len(class_list))))
 
 def load_pascal_annotation(xml_path):
@@ -54,15 +57,23 @@ def load_pascal_annotation(xml_path):
         #print(obj.find('name').text.strip)
         bbox = obj.find('bndbox')
         # Make pixel indexes 0-based
-        x1 = float(bbox.find('xmin').text) #- 1
-        y1 = float(bbox.find('ymin').text) #- 1
-        x2 = float(bbox.find('xmax').text) #- 1
-        y2 = float(bbox.find('ymax').text) #- 1
+        x1 = int(bbox.find('xmin').text) #- 1
+        y1 = int(bbox.find('ymin').text) #- 1
+        x2 = int(bbox.find('xmax').text) #- 1
+        y2 = int(bbox.find('ymax').text) #- 1
+        x1 = x1 if x1 >= 0 else 0
+        y1 = y1 if y1 >= 0 else 0
+        x2 = x2 if x2 >= 0 else 0
+        y2 = y2 if y2 >= 0 else 0
+        x1 = x1 if x1 < 5000 else 0
+        y1 = y1 if y1 < 5000 else 0
+        x2 = x2 if x2 < 5000 else 0
+        y2 = y2 if y2 < 5000 else 0
         #cls = self._class_to_ind[obj.find('name').text.lower().strip()]        
         class_name = obj.find('name').text.strip()
-        if class_name == 'bottom':
+        if class_name == 'bottom' or class_name == 'horizon':
             class_name = 'top'
-        if class_name == 'right':
+        if class_name == 'right' or class_name == 'vertical':
             class_name = 'left'
         if class_name == 'lable':
             class_name = 'label'
@@ -197,8 +208,8 @@ def prepareBatchData(xml_path, img_path, batch_size, xmllist):
         im_scale_y = height / float(ims[ix].shape[0])
         im_scale = np.array([im_scale_x, im_scale_y])
         im = ims[ix]
-        im = im.astype(np.float32)
-        #im = (im - PIXEL_MEANS) / PIXEL_STDS
+        im = im.astype(np.float32) / 255
+        im = (im - PIXEL_MEANS) / PIXEL_STDS
         #im = im - PIXEL_MEANS
         im = cv2.resize(im, (width, height), interpolation=cv2.INTER_LINEAR)
         im_blobs[ix, :, :, :] = im_list_to_blob(im)

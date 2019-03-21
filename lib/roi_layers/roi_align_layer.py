@@ -53,7 +53,9 @@ class ROIAlignLayer(nn.Module):
         self.spatial_scale = spatial_scale
         self.sampling_ratio = sampling_ratio
 
-    def forward(self, input, rois):
+    def forward(self, input, rois, spatial_scale=1.0/16.0):
+        if np.abs(1.0/self.spatial_scale - 1.0/spatial_scale) > 1:
+            self.spatial_scale = spatial_scale
         return roi_align(
             input, rois, self.output_size, self.spatial_scale, self.sampling_ratio
         )
