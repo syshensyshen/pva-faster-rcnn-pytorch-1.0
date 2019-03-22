@@ -166,6 +166,12 @@ class PyramidFeatures(nn.Module):
     def __init__(self, C2_size, C3_size, C4_size, C5_size, feature_size=256):
         super(PyramidFeatures, self).__init__()
 
+        # "P6 is obtained via a 3x3 stride-2 conv on C5"
+        self.P6_1 = nn.Conv2d(C5_size, feature_size, kernel_size=3, stride=2, padding=1)
+        self.P6_1_relu = nn.ReLU(inplace=True)
+        self.P6_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
+        self.P6_2_relu = nn.ReLU(inplace=True)
+
         # upsample C5 to get P5 from the FPN paper
         self.P5_1           = nn.Conv2d(C5_size, feature_size, kernel_size=1, stride=1, padding=0)
         #self.P5_upsampled   = F.Upsample(scale_factor=2, mode='nearest')
@@ -184,6 +190,8 @@ class PyramidFeatures(nn.Module):
         self.P2_1 = nn.Conv2d(C2_size, feature_size, kernel_size=1, stride=1, padding=0)
         self.P2_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
 
+        self.P6 = nn.MaxPool2d(1, stride=2)
+
         self._init_weights()
 
     def _init_weights(self):
@@ -195,10 +203,15 @@ class PyramidFeatures(nn.Module):
         normal_init(self.P4_2, 0, 0.01)
         normal_init(self.P5_1, 0, 0.01)
         normal_init(self.P5_2, 0, 0.01)
+        normal_init(self.P6_1, 0, 0.01)
+        normal_init(self.P6_2, 0, 0.01)
 
     def forward(self, inputs):
 
         C2, C3, C4, C5 = inputs
+
+        P6_x = self.P6_1_relu(self.P6_1(C5))
+        P6_x = self.P6_2_relu(self.P6_2(P6_x))
 
         P5_x = self.P5_1(C5) 
         P5_upsampled_x = F.interpolate(P5_x, scale_factor=2, mode="nearest")      
@@ -220,7 +233,7 @@ class PyramidFeatures(nn.Module):
         P2_x = P2_x + P3_upsampled_x
         P2_x = self.P3_2(P2_x)
 
-        return [P2_x, P3_x, P4_x, P5_x]
+        return [P2_x, P3_x, P4_x, P5_x, P6_x]
 
 class hyper_features(nn.Module):
     def __init__(self, down_channels):

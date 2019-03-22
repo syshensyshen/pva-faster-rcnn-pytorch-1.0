@@ -14,14 +14,16 @@ import uuid
 import cv2
 import random
 
-#SCALES = (416, 448, 480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800, 832, 864, 896, 928, 960, 992, 1024)
-SCALES = (512, 544, 576, 608, 640, 672, 704, 736, 768, 800, 832)
+#SCALES = (416, 448, 480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800, 832, 864)
+SCALES = (864, 896)
+#SCALES = (416, 448, 480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800, 832, 864, 896, 928, 992, 1024, 1056, 1088, 1120, 1152, 1184, 1216, 1248, 1280)
+#SCALES = (608, 640, 672, 704, 736, 768, 800, 832, 864)
 #SCALES = (576, 608, 640)
 #PIXEL_MEANS = np.array([[[102.9801, 115.9465, 122.7717]]])
 PIXEL_MEANS = np.array([[[0.485, 0.456, 0.406]]])
 PIXEL_STDS = np.array([[[0.229, 0.224, 0.225]]])
 SCALE_MULTIPLE_OF = 32
-MAX_SIZE = 2592
+MAX_SIZE = 960
 
 
 #class_list = ('__background__', 'left', 'right', 'top','bottom', 'middle', 'back', 'label', 'lable')
@@ -33,10 +35,19 @@ MAX_SIZE = 2592
 #                         'sheep', 'sofa', 'train', 'tvmonitor',
 #                         'rebar')
 #class_list = ('__background__', 'HM', 'TT')
-#class_list = ('__background__', 'TT','GG','QZ', 'PP','AJ','HM','FC', 'SL')
-class_list = ('__background__', 'TT','GG','QZ', 'PP','AJ','HM','FC', 'HH')
+#class_list = ('__background__', 'SL', 'M', 'QZ', 'FC', 'HH', 'HM', 'AJ', 'PP', 'GG', 'TT')
+class_list = ('__background__', 'QZ', 'FC', 'HH', 'HM', 'AJ', 'PP', 'GG', 'M', 'TT')
 #class_list = ('__background__', 'left', 'top', 'middle', 'back', 'label')
 #class_list = ('__background__', 'HH')
+#class_list = ('__background__', 'object_1', 'object_2', 'object_3', 'object_4', 'object_5', \
+#             'object_6', 'object_7','object_8', 'object_9', 'object_10', 'object_11', 'object_12', \
+#              'object_13', 'object_14', 'object_15', 'object_16', 'object_17', 'object_18', 'object_19', \
+#              'object_20', 'object_21', 'object_22', 'object_23', 'object_24', 'object_25', 'object_26', \
+#              'object_27', 'object_28', 'object_29', 'object_30', 'object_31', 'object_32' \
+#              'object_33', 'object_34', 'object_35', 'object_36', 'object_37', 'object_38', \
+#              'object_39', 'object_40', 'object_41', 'object_42', 'object_43', 'object_44', \
+#              'object_45')#, 'object_46', 'object_47','object_48', 'object_49')
+
 class_to_ind = dict(zip(class_list, range(0, len(class_list))))
 
 def load_pascal_annotation(xml_path):
@@ -79,6 +90,8 @@ def load_pascal_annotation(xml_path):
             class_name = 'label'
         if not class_name in class_list:
             continue
+        if class_name == 'H':
+            class_name = 'HH'
         cls = class_to_ind[class_name]
         boxes[ix, :] = [x1, y1, x2, y2]
         gt_classes[ix] = cls
@@ -180,6 +193,8 @@ def prepareBatchData(xml_path, img_path, batch_size, xmllist):
     max_len = 0
     for xml in xmllist:
         name = os.path.basename(xml)
+        if ' ' in name:
+            name = name.replace(' ', '')
         xml_context = load_pascal_annotation(xml_path + '/' + name)
         if max_len < xml_context['boxes'].shape[0]:
             max_len = xml_context['boxes'].shape[0]
@@ -190,8 +205,13 @@ def prepareBatchData(xml_path, img_path, batch_size, xmllist):
             postfix = '.bmp'
         if check_file(img_path, name, '.png'):
             postfix = '.png'
+        if check_file(img_path, name, '.JPG'):
+            postfix = '.JPG'
+        #print(xml)
         im = cv2.imread(img_path + '/' + name.replace('.xml', postfix))
-        #print(img_path, name, postfix)
+        if im is None:
+            print(img_path + '/' + name.replace('.xml', postfix))
+            continue
         #print(im.shape)
         ims.append(im)
         boxes.append(xml_context['boxes'])
@@ -208,7 +228,7 @@ def prepareBatchData(xml_path, img_path, batch_size, xmllist):
         im_scale_y = height / float(ims[ix].shape[0])
         im_scale = np.array([im_scale_x, im_scale_y])
         im = ims[ix]
-        im = im.astype(np.float32) / 255
+        im = im.astype(np.float32) / 255.0
         im = (im - PIXEL_MEANS) / PIXEL_STDS
         #im = im - PIXEL_MEANS
         im = cv2.resize(im, (width, height), interpolation=cv2.INTER_LINEAR)

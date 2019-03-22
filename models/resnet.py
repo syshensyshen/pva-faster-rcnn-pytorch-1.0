@@ -12,6 +12,7 @@ from torch.autograd import Variable
 import math
 import torch.utils.model_zoo as model_zoo
 import pdb
+import numpy as np
 
 #from models.hyper_rcnn import _hyper_rcnn
 from models.features import PyramidFeatures, PyramidFeaturesEx, DilatedPyramidFeaturesEx
@@ -171,7 +172,7 @@ class ResNet(nn.Module):
     return x
 
 class resnet_faster(_fasterRCNN):
-  def __init__(self, num_clssses, num_layers=101, pretrained=False, class_agnostic=False):
+  def __init__(self, num_clssses, block, layers, training, num_layers=101, pretrained=False, class_agnostic=False):
     self.model_path = 'data/pretrained_model/resnet101_caffe.pth'
     self.dout_base_model = 1024
     self.pretrained = pretrained
@@ -243,14 +244,14 @@ class resnet_faster(_fasterRCNN):
     return fc7
 
 class resnet_pva(pva_faster_rcnn):
-  def __init__(self, classes, num_layers=101, pretrained=False, class_agnostic=False):
+  def __init__(self, num_clssses, num_layers=101, pretrained=False, class_agnostic=False):
       self.dout_base_model = 1024
       self.pretrained = pretrained
       self.class_agnostic = class_agnostic
       self.rcnn_din = 1024
       self.rpn_din = 512
       self.num_layers = num_layers
-      pva_faster_rcnn.__init__(self, classes, class_agnostic)
+      pva_faster_rcnn.__init__(self, num_clssses, class_agnostic)
 
   def _init_modules(self):    
     if self.num_layers==18:
@@ -306,6 +307,17 @@ def normal_init(m, mean, stddev, truncated=False):
 
 class resnet_fpn(nn.Module):
 
+  @staticmethod
+  def reshape(x, d):
+      input_shape = x.size()
+      x = x.view(
+          input_shape[0],
+          int(d),
+          int(float(input_shape[1] * input_shape[2]) / float(d)),
+          input_shape[3]
+      )
+      return x
+
   def _PyramidRoI_Feat(self, feat_maps, rois, im_info):
         ''' roi pool on pyramid feature maps'''
         # do roi pooling based on predicted rois
@@ -327,10 +339,13 @@ class resnet_fpn(nn.Module):
             if (roi_level == l).sum() == 0:
                 continue
             idx_l = (roi_level == l).nonzero().squeeze()
+            #print('sssss', idx_l)
+            idx_l = torch.reshape(idx_l, (1,-1))[0]
             box_to_levels.append(idx_l)
             scale = feat_maps[i].size(2) / im_info[0][0]
             feat = self.roi_feat(feat_maps[i], rois[idx_l], scale)
             roi_pool_feats.append(feat)
+
         roi_pool_feat = torch.cat(roi_pool_feats, 0)
         box_to_level = torch.cat(box_to_levels, 0)
         #idx_sorted, order = torch.sort(box_to_level)
@@ -339,16 +354,17 @@ class resnet_fpn(nn.Module):
             
         return roi_pool_feat
 
-  def __init__(self, num_clssses, block, layers, training, num_layers=101, pretrained=False, class_agnostic=False):
+  def __init__(self, num_clssses, block, layers, training, pretrained=False, class_agnostic=False):
     self.anchor_ratios = cfg.ANCHOR_RATIOS
     self.anchor_scales = cfg.FPN_ANCHOR_SCALES
-    self.FPN_ANCHOR_SCALES
     self.inplanes = 64
     self.training = training
     self._num_anchors = len(self.anchor_scales[0]) * len(self.anchor_ratios)
+    self.din = 256
     self.rpn_din = 512
     self._num_clssses = num_clssses
     self.rcnn_din = 1024
+    self.class_agnostic = class_agnostic
     super(resnet_fpn, self).__init__()
 
     self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
@@ -360,11 +376,10 @@ class resnet_fpn(nn.Module):
     self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
     self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
 
-    if block == 'BasicBlock':
-        self.fpn_sizes = [self.layer1[layers[0]-1].conv2.out_channels, self.layer2[layers[1]-1].conv2.out_channels, self.layer3[layers[2]-1].conv2.out_channels, self.layer4[layers[3]-1].conv2.out_channels]
-    elif block == 'Bottleneck':
-        self.fpn_sizes = [self.layer1[layers[0]-1].conv3.out_channels, self.layer2[layers[1]-1].conv3.out_channels, self.layer3[layers[2]-1].conv3.out_channels, self.layer4[layers[3]-1].conv3.out_channels]
-            
+    if block == BasicBlock:
+        fpn_sizes = [self.layer1[layers[0]-1].conv2.out_channels, self.layer2[layers[1]-1].conv2.out_channels, self.layer3[layers[2]-1].conv2.out_channels, self.layer4[layers[3]-1].conv2.out_channels]
+    elif block == Bottleneck:
+        fpn_sizes = [self.layer1[layers[0]-1].conv3.out_channels, self.layer2[layers[1]-1].conv3.out_channels, self.layer3[layers[2]-1].conv3.out_channels, self.layer4[layers[3]-1].conv3.out_channels]     
     for m in self.modules():
         if isinstance(m, nn.Conv2d):
             n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
@@ -375,7 +390,7 @@ class resnet_fpn(nn.Module):
 
     self.freeze_bn()
 
-    self.PyramidFeature = PyramidFeatures(self.fpn_sizes[0], self.fpn_sizes[1], self.fpn_sizes[2], self.fpn_sizes[3])
+    self.PyramidFeature = PyramidFeatures(fpn_sizes[0], fpn_sizes[1], fpn_sizes[2], fpn_sizes[3])
 
     # rpn regression
     self.rpnfeature = nn.Conv2d(self.din, self.rpn_din, 3, 1, 1, bias=True)
@@ -412,8 +427,8 @@ class resnet_fpn(nn.Module):
     normal_init(self.rpnfeature, 0, 0.01)
     normal_init(self.rpn_cls, 0, 0.01)
     normal_init(self.rpn_bbox_pred, 0, 0.001)
-    normal_init(self.cls, 0, 0.01)
-    normal_init(self.bbox_pred, 0, 0.001)
+    normal_init(self.rcnn_cls, 0, 0.01)
+    normal_init(self.rcnn_bbox_pred, 0, 0.001)
 
   def _make_layer(self, block, planes, blocks, stride=1):
       downsample = None
@@ -438,7 +453,7 @@ class resnet_fpn(nn.Module):
           if isinstance(layer, nn.BatchNorm2d):
               layer.eval()
 
-  def forward(self, img_batch, gt_boxes, im_info):
+  def forward(self, img_batch, im_info, gt_boxes):
 
       x = self.conv1(img_batch)
       x = self.bn1(x)
@@ -463,14 +478,15 @@ class resnet_fpn(nn.Module):
         # return feature map after convrelu layer
         rpn_conv1 = F.relu(self.rpnfeature(feat_map), inplace=True)
         # get rpn classification score
-        rpn_cls_score = self.RPN_cls_score(rpn_conv1)
+        rpn_cls_score = self.rpn_cls(rpn_conv1)
 
         rpn_cls_score_reshape = self.reshape(rpn_cls_score, 2)
         rpn_cls_prob_reshape = F.sigmoid(rpn_cls_score_reshape)
-        rpn_cls_prob = self.reshape(rpn_cls_prob_reshape, self.nc_score_out)
+        rpn_cls_prob = self.reshape(rpn_cls_prob_reshape, self._num_anchors * 2)
 
         # get rpn offsets to the anchor boxes
-        rpn_bbox_pred = self.RPN_bbox_pred(rpn_conv1)
+        rpn_bbox_pred = self.rpn_bbox_pred(rpn_conv1)
+        #print(rpn_bbox_pred)
 
         rpn_shapes.append([rpn_cls_score.size()[2], rpn_cls_score.size()[3]])
         rpn_cls_scores.append(rpn_cls_score.permute(0, 2, 3, 1).contiguous().view(batch_size, -1, 2))
@@ -480,6 +496,7 @@ class resnet_fpn(nn.Module):
       rpn_cls_score_alls = torch.cat(rpn_cls_scores, 1)
       rpn_cls_prob_alls = torch.cat(rpn_cls_probs, 1)
       rpn_bbox_pred_alls = torch.cat(rpn_bbox_preds, 1)
+      #print(rpn_bbox_pred_alls)
 
       if self.training:
         assert gt_boxes is not None
@@ -505,16 +522,17 @@ class resnet_fpn(nn.Module):
         rpn_bbox_outside_weights = Variable(rpn_bbox_outside_weights.unsqueeze(2) \
                 .expand(batch_size, rpn_bbox_outside_weights.size(1), 4))
         rpn_bbox_targets = Variable(rpn_bbox_targets)
+        #print(rpn_bbox_targets)
         
         rpn_loss_bbox = _smooth_l1_loss(rpn_bbox_pred_alls, rpn_bbox_targets, rpn_bbox_inside_weights, 
                         rpn_bbox_outside_weights, sigma=3)
         
-        roi_data = self.proposal_targets(rois, gt_boxes, num_boxes)
-        rois, rois_label, gt_assign, rois_target, rois_inside_ws, rois_outside_ws = roi_data
+        roi_data = self.proposal_targets(rois, gt_boxes)
+        rois, rois_label, rois_target, rois_inside_ws, rois_outside_ws = roi_data
 
         rois = rois.view(-1, 5)
         rois_label = rois_label.view(-1).long()
-        gt_assign = gt_assign.view(-1).long()
+        #gt_assign = gt_assign.view(-1).long()
         pos_id = rois_label.nonzero().squeeze()
         #gt_assign_pos = gt_assign[pos_id]
         #rois_label_pos = rois_label[pos_id]
@@ -529,7 +547,11 @@ class resnet_fpn(nn.Module):
         rois_outside_ws = Variable(rois_outside_ws.view(-1, rois_outside_ws.size(2)))
 
         roi_pool_feat = self._PyramidRoI_Feat(features, rois, im_info)
+        #print(roi_pool_feat.shape)
         pooled_feat = self.rcnnfeatures(roi_pool_feat)
+        #print(pooled_feat.shape)
+        pooled_feat = pooled_feat.view(-1, self.rcnn_din)
+        #print(pooled_feat.shape)
         cls_score = self.rcnn_cls(pooled_feat)
         bbox_pred = self.rcnn_bbox_pred(pooled_feat)
         cls_prob = F.softmax(cls_score)
@@ -548,6 +570,7 @@ class resnet_fpn(nn.Module):
 
         roi_pool_feat = self._PyramidRoI_Feat(features, rois, im_info)
         pooled_feat = self.rcnnfeatures(roi_pool_feat)
+        pooled_feat = pooled_feat.view(-1, self.rcnn_din)
         cls_score = self.rcnn_cls(pooled_feat)
         bbox_pred = self.rcnn_bbox_pred(pooled_feat)
         cls_prob = F.softmax(cls_score)
@@ -556,52 +579,52 @@ class resnet_fpn(nn.Module):
         bbox_pred = bbox_pred.view(batch_size, -1, bbox_pred.size(1))
         return rois, cls_prob, bbox_pred
 
-def resnet18(pretrained=False, model_name=resnet_pva):
+def resnet18(num_clssses, training, pretrained=False):
   """Constructs a ResNet-18 model.
   Args:
     pretrained (bool): If True, returns a model pre-trained on ImageNet
   """
-  model = eval(model_name)(BasicBlock, [2, 2, 2, 2])
+  model = resnet_fpn(num_clssses, BasicBlock, [2, 2, 2, 2], training)
   if pretrained:
     model.load_state_dict(model_zoo.load_url(model_urls['resnet18']))
   return model
 
-def resnet34(pretrained=False, model_name=resnet_pva):
+def resnet34(num_clssses, training, pretrained=False):
   """Constructs a ResNet-34 model.
   Args:
     pretrained (bool): If True, returns a model pre-trained on ImageNet
   """
-  model = eval(model_name)(BasicBlock, [3, 4, 6, 3])
+  model = resnet_fpn(num_clssses, BasicBlock, [3, 4, 6, 3], training)
   if pretrained:
-    model.load_state_dict(model_zoo.load_url(model_urls['resnet34']))
+    model.load_state_dict(model_zoo.load_url(model_urls['resnet34'], model_dir='/home/user/.torch/models/'), strict=False)
   return model
 
-def resnet50(pretrained=False, model_name=resnet_pva):
+def resnet50(num_clssses, training, pretrained=False):
   """Constructs a ResNet-50 model.
   Args:
     pretrained (bool): If True, returns a model pre-trained on ImageNet
   """
-  model = eval(model_name)(Bottleneck, [3, 4, 6, 3])
+  model = resnet_fpn(num_clssses, Bottleneck, [3, 4, 6, 3], training)
   if pretrained:
-    model.load_state_dict(model_zoo.load_url(model_urls['resnet50']))
+    model.load_state_dict(model_zoo.load_url(model_urls['resnet50'], model_dir='/home/user/.torch/models/'), strict=False)
   return model
 
-def resnet101(pretrained=False, model_name=resnet_pva):
+def resnet101(num_clssses, training, pretrained=False):
   """Constructs a ResNet-101 model.
   Args:
     pretrained (bool): If True, returns a model pre-trained on ImageNet
   """
-  model = eval(model_name)(Bottleneck, [3, 4, 23, 3])
+  model = resnet_fpn(num_clssses, Bottleneck, [3, 4, 23, 3], training)
   if pretrained:
-    model.load_state_dict(model_zoo.load_url(model_urls['resnet101']))
+    model.load_state_dict(model_zoo.load_url(model_urls['resnet101'], model_dir='/home/user/.torch/models/'), strict=False)
   return model
 
-def resnet152(pretrained=False, model_name=resnet_pva):
+def resnet152(num_clssses, training, pretrained=False):
   """Constructs a ResNet-152 model.
   Args:
     pretrained (bool): If True, returns a model pre-trained on ImageNet
   """
-  model = eval(model_name)(Bottleneck, [3, 8, 36, 3])
+  model = resnet_fpn(num_clssses, Bottleneck, [3, 8, 36, 3], training)
   if pretrained:
-    model.load_state_dict(model_zoo.load_url(model_urls['resnet152']))
+    model.load_state_dict(model_zoo.load_url(model_urls['resnet152'], model_dir='/home/user/.torch/models/'), strict=False)
   return model

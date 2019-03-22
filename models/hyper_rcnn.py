@@ -38,7 +38,6 @@ class _hyper_rcnn(nn.Module):
         self.RCNN_loss_bbox = 0
         self.rcnn_din = 4096
         self.rpn_din = 512
-        self.downBeatC = 3584
 
         # define rpn
         self.RCNN_rpn = _RPN(self.dout_base_model, self.rpn_din)
@@ -50,7 +49,7 @@ class _hyper_rcnn(nn.Module):
 
         self.RCNN_roi_pool = ROIPoolingLayer((cfg.POOLING_SIZE, cfg.POOLING_SIZE), 1.0/16.0)
         self.RCNN_roi_align = ROIAlignLayer((cfg.POOLING_SIZE, cfg.POOLING_SIZE), 1.0/16.0, 0)
-        self.downBeat = nn.Conv2d(self.downBeatC, self.rpn_din, kernel_size=1)
+        self.downBeat = nn.Conv2d(3584, self.rpn_din, kernel_size=1)
         self.RCNN_top = nn.Sequential(OrderedDict([
             ('fc6_new',nn.Linear(self.dout_base_model * cfg.POOLING_SIZE * cfg.POOLING_SIZE, self.rcnn_din)),
             ('fc6_relu', nn.ReLU(inplace=True)),
@@ -94,8 +93,38 @@ class _hyper_rcnn(nn.Module):
 
         # compute bbox offset
         bbox_pred = self.RCNN_bbox_pred(pooled_feat)
-        
-        return rois, cls_prob, bbox_pred
+        if self.training and not self.class_agnostic:
+            # select the corresponding columns according to roi labels
+            bbox_pred_view = bbox_pred.view(bbox_pred.size(0), int(bbox_pred.size(1) / 4), 4)
+            bbox_pred_select = torch.gather(bbox_pred_view, 1, rois_label.view(rois_label.size(0), 1, 1).expand(rois_label.size(0), 1, 4))
+            bbox_pred = bbox_pred_select.squeeze(1)
+
+        # compute object classification probability
+        cls_score = self.RCNN_cls_score(pooled_feat)
+        cls_prob = F.softmax(cls_score, 1)
+
+        RCNN_loss_cls = 0
+        RCNN_loss_bbox = 0
+
+        if self.training:
+            # classification loss
+            RCNN_loss_cls = F.cross_entropy(cls_score, rois_label)
+
+            # bounding box regression L1 loss
+            RCNN_loss_bbox = _smooth_l1_loss(bbox_pred, rois_target, rois_inside_ws, rois_outside_ws)
+
+
+        cls_prob = cls_prob.view(batch_size, rois.size(1), -1)
+        bbox_pred = bbox_pred.view(batch_size, rois.size(1), -1)
+        #print(rois.shape)
+        #for index in range(0, 300):
+        #    if cls_prob[:,index,0] < 0.5:
+        #        print(cls_prob[:,index,:], rois[:,index,:])
+        #print(bbox_pred)
+        if self.training:
+            return rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_bbox, RCNN_loss_cls, RCNN_loss_bbox, rois_label
+        else:
+            return rois, cls_prob, bbox_pred
 
     def _init_weights(self):
         def normal_init(m, mean, stddev, truncated=False):

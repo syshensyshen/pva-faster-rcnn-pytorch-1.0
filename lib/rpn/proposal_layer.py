@@ -216,6 +216,7 @@ class _ProposalLayer_FPN(nn.Module):
 
         # 2. clip predicted boxes to image
         proposals = clip_boxes(proposals, im_info, batch_size)
+        #proposals = clip_boxes_batch(proposals, im_info, batch_size)
         # keep_idx = self._filter_boxes(proposals, min_size).squeeze().long().nonzero().squeeze()
                 
         scores_keep = scores
@@ -244,7 +245,8 @@ class _ProposalLayer_FPN(nn.Module):
             # 7. take after_nms_topN (e.g. 300)
             # 8. return the top proposals (-> RoIs top)
 
-            keep_idx_i = nms(torch.cat((proposals_single, scores_single), 1), nms_thresh)
+            #keep_idx_i = nms(torch.cat((proposals_single, scores_single), 1), nms_thresh)
+            keep_idx_i = nms(proposals_single, scores_single.squeeze(1), nms_thresh)
             keep_idx_i = keep_idx_i.long().view(-1)
 
             if post_nms_topN > 0:

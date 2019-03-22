@@ -174,6 +174,7 @@ def generate_anchors_all_pyramids(scales, ratios, feature_shapes, feature_stride
     # Anchors
     # [anchor_count, (y1, x1, y2, x2)]
     anchors = []
+    #print(len(scales))
     for i in range(len(scales)):
         anchors.append(generate_anchors_single_pyramid(scales[i], ratios, feature_shapes[i],
                                         feature_strides[i], anchor_stride))

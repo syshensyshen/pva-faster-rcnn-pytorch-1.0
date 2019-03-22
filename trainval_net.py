@@ -25,7 +25,8 @@ from collections import OrderedDict
 from tools.net_utils import adjust_learning_rate
 from models.lite import lite_faster_rcnn
 from models.pvanet import pva_net
-from models.resnet import resnethyper, resnet, resnet_pva
+from models.resnet import resnethyper, resnet_pva
+from models.resnet import resnet18, resnet34,resnet50, resnet101, resnet152
 #os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
 def parse_args():
@@ -43,6 +44,7 @@ def parse_args():
   parser.add_argument('--classes', default=21, type=int)
   parser.add_argument('--save_dir', default='./', type=str)
   parser.add_argument('--gpus', default=[0], type=list)
+  parser.add_argument('--depth', default=101, type=int)
 
   args = parser.parse_args()
   return args
@@ -67,11 +69,12 @@ def main():
     model = lite_faster_rcnn(args.classes, pretrained=pretrained)
   if 'pva' in args.network:
     model = pva_net(args.classes, pretrained=pretrained)
-  if 'resnet' in args.network:
-    model = resnet(args.classes, num_layers=101, pretrained=pretrained)
   if 'resnet_pva' in args.network:
     model = resnet_pva(args.classes, pretrained=True)
-  model.create_architecture()
+  if 'resnet_fpn' in args.network:
+    model = eval('resnet'+str(args.depth))(args.classes, training=True, pretrained=True)
+  if not 'resnet_fpn' in args.network:
+      model.create_architecture()
   device_id = [ int(elem) for elem in args.gpus if elem != ',']
   if len(device_id) > 1:
     model = torch.nn.DataParallel(model, device_ids=device_id)
@@ -167,7 +170,7 @@ def main():
       'epoch': epoch,
       'save_dir': save_dir,
       'state_dict': state_dict},
-      os.path.join(save_dir, 'hh_' + '%04d.ckpt' % epoch))
+      os.path.join(save_dir, 'hh_fpn_' + '%04d.ckpt' % epoch))
 
 if __name__ == "__main__":
   main()

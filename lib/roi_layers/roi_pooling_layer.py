@@ -54,7 +54,7 @@ class ROIPoolingLayer(nn.Module):
         self.spatial_scale = spatial_scale
 
     def forward(self, input, rois, spatial_scale=1.0/16.0):
-        if np.abs(1.0/self.spatial_scale - 1.0/spatial_scale) > 1:
+        if torch.abs(1.0/self.spatial_scale - 1.0/spatial_scale) > 1:
             self.spatial_scale = spatial_scale
         return roi_pool(input, rois, self.output_size, self.spatial_scale)
 
