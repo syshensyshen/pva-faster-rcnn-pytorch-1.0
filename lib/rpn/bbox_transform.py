@@ -165,6 +165,13 @@ def bbox_overlaps(anchors, gt_boxes):
 
     return overlaps
 
+def deep_copy_tensor(src):
+    x1 = torch.zeros(src.size(0), src.size(1), src.size(2), device=src.device)
+    y1 = torch.zeros(src.size(0), src.size(1), src.size(2), device=src.device)
+    x2 = torch.zeros(src.size(0), src.size(1), src.size(2), device=src.device)
+    y2 = torch.zeros(src.size(0), src.size(1), src.size(2), device=src.device)
+    return x1.copy_(src[:,:,:,0]), y1.copy_(src[:,:,:,1]), x2.copy_(src[:,:,:,2]), y2.copy_(src[:,:,:,3])
+
 def bbox_overlaps_batch(anchors, gt_boxes):
     """
     anchors: (N, 4) ndarray of float
@@ -196,16 +203,28 @@ def bbox_overlaps_batch(anchors, gt_boxes):
         anchors_area_zero = (anchors_boxes_x == 1) & (anchors_boxes_y == 1)
 
         boxes = anchors.view(batch_size, N, 1, 4).expand(batch_size, N, K, 4)
-        query_boxes = gt_boxes.view(batch_size, 1, K, 4).expand(batch_size, N, K, 4)
+        #query_boxes = gt_boxes.view(batch_size, 1, K, 4).expand(batch_size, N, K, 4)
+        query_boxes = gt_boxes.view(batch_size, 1, K, 4).expand_as(boxes)
 
-        iw = (torch.min(boxes[:,:,:,2], query_boxes[:,:,:,2]) -
-            torch.max(boxes[:,:,:,0], query_boxes[:,:,:,0]) + 1)
+        iw = (torch.min(boxes[:, :, :, 2], query_boxes[:, :, :, 2]) -
+              torch.max(boxes[:, :, :, 0], query_boxes[:, :, :, 0]) + 1)
         iw[iw < 0] = 0
 
-        ih = (torch.min(boxes[:,:,:,3], query_boxes[:,:,:,3]) -
-            torch.max(boxes[:,:,:,1], query_boxes[:,:,:,1]) + 1)
+        ih = (torch.min(boxes[:, :, :, 3], query_boxes[:, :, :, 3]) -
+              torch.max(boxes[:, :, :, 1], query_boxes[:, :, :, 1]) + 1)
         ih[ih < 0] = 0
-        ua = anchors_area + gt_boxes_area - (iw * ih)
+
+        # iw = torch.min(boxes[:,:,:,2].cpu(), query_boxes[:,:,:,2].cpu()) - \
+        #      torch.max(boxes[:,:,:,0].cpu(), query_boxes[:,:,:,0].cpu()) + 1
+        # iw[iw < 0] = 0
+        # iw = iw.cuda(device=gt_boxes.device)
+        #
+        # ih = torch.min(boxes[:,:,:,3].cpu(), query_boxes[:,:,:,3].cpu()) - \
+        #      torch.max(boxes[:,:,:,1].cpu(), query_boxes[:,:,:,1].cpu()) + 1
+        # ih[ih < 0] = 0
+        # ih = ih.cuda(device=gt_boxes.device)
+
+        ua = anchors_area + gt_boxes_area - iw * ih
         overlaps = iw * ih / ua
 
         # mask the overlap here.
@@ -235,16 +254,28 @@ def bbox_overlaps_batch(anchors, gt_boxes):
         anchors_area_zero = (anchors_boxes_x == 1) & (anchors_boxes_y == 1)
 
         boxes = anchors.view(batch_size, N, 1, 4).expand(batch_size, N, K, 4)
-        query_boxes = gt_boxes.view(batch_size, 1, K, 4).expand(batch_size, N, K, 4)
+        #query_boxes = gt_boxes.view(batch_size, 1, K, 4).expand(batch_size, N, K, 4)
+        query_boxes = gt_boxes.view(batch_size, 1, K, 4).expand_as(boxes)
 
-        iw = (torch.min(boxes[:,:,:,2], query_boxes[:,:,:,2]) -
-            torch.max(boxes[:,:,:,0], query_boxes[:,:,:,0]) + 1)
+        iw = (torch.min(boxes[:, :, :, 2], query_boxes[:, :, :, 2]) -
+              torch.max(boxes[:, :, :, 0], query_boxes[:, :, :, 0]) + 1)
         iw[iw < 0] = 0
 
-        ih = (torch.min(boxes[:,:,:,3], query_boxes[:,:,:,3]) -
-            torch.max(boxes[:,:,:,1], query_boxes[:,:,:,1]) + 1)
+        ih = (torch.min(boxes[:, :, :, 3], query_boxes[:, :, :, 3]) -
+              torch.max(boxes[:, :, :, 1], query_boxes[:, :, :, 1]) + 1)
         ih[ih < 0] = 0
-        ua = anchors_area + gt_boxes_area - (iw * ih)
+
+        # iw = torch.min(boxes[:, :, :, 2].cpu(), query_boxes[:, :, :, 2].cpu()) - \
+        #      torch.max(boxes[:, :, :, 0].cpu(), query_boxes[:, :, :, 0].cpu()) + 1
+        # iw[iw < 0] = 0
+        # iw = iw.cuda(device=gt_boxes.device)
+        #
+        # ih = torch.min(boxes[:, :, :, 3].cpu(), query_boxes[:, :, :, 3].cpu()) - \
+        #      torch.max(boxes[:, :, :, 1].cpu(), query_boxes[:, :, :, 1].cpu()) + 1
+        # ih[ih < 0] = 0
+        # ih = ih.cuda(device=gt_boxes.device)
+
+        ua = anchors_area + gt_boxes_area - iw * ih
 
         overlaps = iw * ih / ua
 

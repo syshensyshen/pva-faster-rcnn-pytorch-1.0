@@ -43,6 +43,9 @@ at::Tensor ROIPool_backward_cuda(const at::Tensor& grad,
 at::Tensor nms_cuda(const at::Tensor boxes, float nms_overlap_thresh);
 
 
+at::Tensor soft_nms_cuda(const at::Tensor boxes, float nms_overlap_thresh, float sigma, int mode=0);
+
+
 at::Tensor compute_flow_cuda(const at::Tensor& boxes,
                              const int height,
                              const int width);

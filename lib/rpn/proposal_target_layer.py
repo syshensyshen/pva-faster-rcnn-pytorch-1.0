@@ -28,11 +28,16 @@ class _ProposalTargetLayer(nn.Module):
         self.BBOX_NORMALIZE_MEANS = self.BBOX_NORMALIZE_MEANS.type_as(gt_boxes)
         self.BBOX_NORMALIZE_STDS = self.BBOX_NORMALIZE_STDS.type_as(gt_boxes)
         self.BBOX_INSIDE_WEIGHTS = self.BBOX_INSIDE_WEIGHTS.type_as(gt_boxes)
+        # add gt_boxes in proposal
+        new_all_rois = torch.zeros((all_rois.size(0), all_rois.size(1)+gt_boxes.size(1), all_rois.size(2)))
+        new_gt_boxes = torch.zeros_like(gt_boxes)
+        new_gt_boxes[:,:,1:5] = gt_boxes[:,:,0:4]
+        for index in range(all_rois.size(0)):
+            new_gt_boxes[index,:,0] = index
+        new_all_rois[:, 0:all_rois.size(1), :] = all_rois[:, :, :]
+        new_all_rois[:, all_rois.size(1):all_rois.size(1) + new_gt_boxes.size(1), :] = new_gt_boxes
 
-        gt_boxes_append = gt_boxes.new(gt_boxes.size()).zero_()
-        gt_boxes_append[:,:,1:5] = gt_boxes[:,:,:4]
-
-        all_rois = torch.cat([all_rois, gt_boxes_append], 1)
+        all_rois = new_all_rois.to(all_rois.device)
 
         num_images = 1
         rois_per_image = int(cfg.TRAIN.BATCH_SIZE / num_images)
@@ -151,10 +156,11 @@ class _ProposalTargetLayer(nn.Module):
                 bg_rois_per_this_image = rois_per_image
                 fg_rois_per_this_image = 0
             else:
-                bg_inds = torch.nonzero(max_overlaps[i] == 0).view(-1)                
+                bg_inds = torch.nonzero(max_overlaps[i] == -1).view(-1)
                 rand_num = np.floor(np.random.rand(rois_per_image) * rois_per_image)
                 rand_num = torch.from_numpy(rand_num).type_as(gt_boxes).long()
                 bg_inds = bg_inds[rand_num]
+                fg_rois_per_this_image = 0
                 #raise ValueError("bg_num_rois = 0 and fg_num_rois = 0, this should not happen!")
 
             # The indices that we're selecting (both fg and bg)

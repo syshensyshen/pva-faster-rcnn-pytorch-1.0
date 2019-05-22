@@ -11,13 +11,24 @@ import pdb
 import time
 from glob import glob
 import torch
+import collections
 from torch.autograd import Variable
 import torch.nn as nn
 import torch.optim as optim
 import torchvision.transforms as transforms
 from lib.datasets.pascal_voc import prepareBatchData
+
 import os
 import random
+
+from lib.datasets.dataloader import CocoDataset, CSVDataset, XML_VOCDataset
+from lib.datasets.dataloader import collater, Resizer, ResizerMultiScale, AspectRatioBasedSampler
+from lib.datasets.dataloader import Augmenter, UnNormalizer, Normalizer
+from torch.utils.data import Dataset, DataLoader
+import lib.datasets.coco_eval as coco_eval
+import lib.datasets.csv_eval as csv_eval
+import lib.datasets.voc_eval as voc_eval
+
 #from models.model import network
 from models.config import cfg
 from tools.net_utils import get_current_lr
@@ -25,57 +36,105 @@ from collections import OrderedDict
 from tools.net_utils import adjust_learning_rate
 from models.lite import lite_faster_rcnn
 from models.pvanet import pva_net
-from models.resnet import resnethyper, resnet_pva
-from models.resnet import resnet18, resnet34,resnet50, resnet101, resnet152
-#os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+from models.resnet import resnethyper, resnet, resnet_pva
+
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
+class_list = ('__background__', 'FC', 'MK', 'SX', 'SH', 'LS', 'JG', 'HH', 'YHA', 'ZF', 'KQ', 'WC', 'WQ', 'RK', 'KP', 'KZ', 'YHS', 'JD', 'KT', 'SL', 'DJ', 'SL', 'KQ')
 
 def parse_args():
   """
   Parse input arguments
   """
   parser     = argparse.ArgumentParser(description='Simple training script for training a RetinaNet network.')
-  parser.add_argument('--dataset', default="csv",help='Dataset type, must be one of csv or coco.')
-  parser.add_argument('--xml_path', default = "/data/ssy/front_parts/VOC2007/Annotations/",help='Path to containing annAnnotations')
-  parser.add_argument('--img_path', default = "/data/ssy/front_parts/VOC2007/JPEGImages/",help='Path to containing images')
-  parser.add_argument('--epochs', help='Number of epochs', type=int, default=1000)
-  parser.add_argument('--batch_size', help='batch_size', default=2, type=int)
-  parser.add_argument('--sub_batch', help='sub_batch', default=2, type=int)
+  parser.add_argument('--dataset', default="xml",help='Dataset type, must be one of csv or coco.')
+  parser.add_argument('--train_path', default = "/data/ssy/vertical-0522/train/", help='Path to containing train files')
+  parser.add_argument('--val_path', default = "/data/ssy/vertical-0522/test/", help='Path to containing train files')
+  parser.add_argument('--epochs', help='Number of epochs', type=int, default=5000)
+  parser.add_argument('--batch_size', help='batch_size', default=32, type=int)
+  parser.add_argument('--model_name', help='vertical_0522_', default=2, type=int)
   parser.add_argument('--network', default='lite', type=str)
-  parser.add_argument('--classes', default=21, type=int)
-  parser.add_argument('--save_dir', default='./', type=str)
-  parser.add_argument('--gpus', default=[0], type=list)
-  parser.add_argument('--depth', default=101, type=int)
+  parser.add_argument('--classes', default=5, type=int)
+  parser.add_argument('--save_dir', default='./save_models', type=str)
+  parser.add_argument('--gpus', default=[1], type=list)
+  parser.add_argument('--num_works', default=96, type=int)
 
   args = parser.parse_args()
   return args
 
 def main():
   args = parse_args()
-  xml_path = args.xml_path
-  img_path = args.img_path
-  batch_size = args.batch_size
-  sub_batch = args.sub_batch
-  save_dir = args.save_dir
-  if not os.path.isdir(save_dir):
-    os.mkdir(save_dir)
-  
-  xmls = glob(os.path.join(args.xml_path, "*.xml"))
-  sample_size = len(xmls)
-  batch_szie = args.batch_size
-  iters_per_epoch = int(np.floor(sample_size / batch_szie))
+
+  if args.dataset == 'coco':
+
+    if args.coco_path is None:
+      raise ValueError('Must provide --coco_path when training on COCO,')
+
+    dataset_train = CocoDataset(args.coco_path, set_name='train2017',
+                                transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
+    dataset_val = CocoDataset(args.coco_path, set_name='val2017',
+                              transform=transforms.Compose([Normalizer(), Resizer()]))
+
+  elif args.dataset == 'csv':
+
+    if args.csv_train is None:
+      raise ValueError('Must provide --csv_train when training on COCO,')
+
+    if args.csv_classes is None:
+      raise ValueError('Must provide --csv_classes when training on COCO,')
+
+    dataset_train = CSVDataset(train_file=args.csv_train, class_list=args.csv_classes,
+                               transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
+
+    if args.csv_val is None:
+      dataset_val = None
+      print('No validation annotations provided.')
+    else:
+      dataset_val = CSVDataset(train_file=args.csv_val, class_list=args.csv_classes,
+                               transform=transforms.Compose([Normalizer(), Resizer()]))
+
+  elif args.dataset == 'xml':
+    if args.train_path is None:
+      raise ValueError('Must provide --voc_train when training on PASCAL VOC,')
+    dataset_train = XML_VOCDataset(img_path=args.train_path,
+                                   xml_path=args.train_path, class_list=class_list,
+                                   transform=transforms.Compose([Normalizer(), Augmenter(), ResizerMultiScale()]))
+
+    if args.val_path is None:
+      dataset_val = None
+      print('No validation annotations provided.')
+    else:
+      dataset_val = XML_VOCDataset(img_path=args.val_path, xml_path=args.val_path,
+                                   class_list=class_list, transform=transforms.Compose([Normalizer(), Resizer()]))
+
+  else:
+    raise ValueError('Dataset type not understood (must be csv or coco), exiting.')
+
+  sampler = AspectRatioBasedSampler(dataset_train, batch_size=args.batch_size, drop_last=False)
+  dataloader_train = DataLoader(dataset_train, num_workers=args.num_works, collate_fn=collater, batch_sampler=sampler)
+
+  if dataset_val is not None:
+    sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=1, drop_last=False)
+    dataloader_val = DataLoader(dataset_val, num_workers=1, collate_fn=collater, batch_sampler=sampler_val)
+
+  print('Num training images: {}'.format(len(dataset_train)))
+  best_map = 0
+  is_best_map = False
+  print("Training models...")
+  args.classes = len(class_list)
+
   pretrained = True
   if 'lite' in args.network:
     pretrained = False
     model = lite_faster_rcnn(args.classes, pretrained=pretrained)
   if 'pva' in args.network:
-    model = pva_net(args.classes, pretrained=pretrained)
+    model = pva_net(args.classes, pretrained=False)
+  if 'resnet' in args.network:
+    model = resnet(args.classes, num_layers=101, pretrained=pretrained)
   if 'resnet_pva' in args.network:
     model = resnet_pva(args.classes, pretrained=True)
-  if 'resnet_fpn' in args.network:
-    model = eval('resnet'+str(args.depth))(args.classes, training=True, pretrained=True)
-  if not 'resnet_fpn' in args.network:
-      model.create_architecture()
-  device_id = [ int(elem) for elem in args.gpus if elem != ',']
+  model.create_architecture()
+  device_id = [int(elem) for elem in args.gpus if elem != ',']
   if len(device_id) > 1:
     model = torch.nn.DataParallel(model, device_ids=device_id)
   else:
@@ -83,94 +142,99 @@ def main():
   use_gpu = True
   if use_gpu:
     model = model.cuda()
-  
+
   model.train()
   if pretrained and 'lite' in args.network:
     model.module.freeze_bn()
-  #optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, momentum=cfg.TRAIN.MOMENTUM, weight_decay=0.00005)
-  optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=0.00005)
-  #lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.1, patience=60, verbose=True,mode="max")
-  #lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, patience=15, verbose=True,mode="max")
-  #lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=40, gamma=0.1)
-  #lr_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[62, 102, 132, 145], gamma=0.1)
-  milestones=[200, 500, 600, 1000]
-  index = 0
-  lr_decay_step = milestones[index] 
 
-  for epoch in range(0, args.epochs):
-    if epoch % 20 == 0 and epoch != 0:
-        random.shuffle(xmls)
-    loss_temp = 0    
-    if epoch > lr_decay_step:
-      index += 1
-      lr_decay_step = milestones[index]
-      adjust_learning_rate(optimizer, 0.1)
+  optimizer = optim.Adam(model.parameters(), lr=1e-4)
+  scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=15, verbose=True, mode="max")
+  loss_hist = collections.deque(maxlen=1024)
+  for epoch_num in range(args.epochs):
 
-    for iters in range(0, iters_per_epoch):            
-      start_iter = iters * batch_szie
-      end_iter = start_iter + batch_szie
-      if end_iter > sample_size:
-        end_iter = sample_size
-        start_iter = end_iter - batch_szie
-      if end_iter == start_iter:
-        start_iter = end_iter - 1
-      optimizer.zero_grad()
-      loss = 0
-      xml = xmls[start_iter:end_iter]
-      data = prepareBatchData(xml_path, img_path, batch_size, xml)
-      gt_tensor = torch.autograd.Variable(torch.from_numpy(data[0]))
-      im_blobs_tensor = torch.autograd.Variable(torch.from_numpy(data[1]))
-      im_info_tensor = torch.autograd.Variable(torch.from_numpy(data[2]))
-      if use_gpu:
-        gt_tensor = gt_tensor.cuda()
-        im_blobs_tensor = im_blobs_tensor.cuda()
-        im_info_tensor = im_info_tensor.cuda()
-      for sub in range(int(batch_size / sub_batch)):
-        start_sub = int(sub * batch_size / sub_batch)
-        end_sub = int((sub + 1) * batch_size / sub_batch)
+    epoch_loss = []
 
-        if pretrained and 'lite' in args.network:
-           model.module.freeze_bn()      
-        _, _, _, rpn_loss_cls, \
-        rpn_loss_bbox, loss_cls, loss_bbox, _ = \
-                        model(im_blobs_tensor[start_sub:end_sub, :, :, :], \
-                        im_info_tensor[start_sub:end_sub, :], gt_tensor[start_sub:end_sub, :, :])
-
-        loss += (rpn_loss_cls.mean() + rpn_loss_bbox.mean() \
-            + loss_cls.mean() + loss_bbox.mean())
-      loss_temp += loss.item()      
-      loss.backward()
-      optimizer.step()
-      display = 20
-
-      if iters % display == 0:
-        if iters > 0:
-          loss_temp /= display 
-
+    for iter_num, data in enumerate(dataloader_train):
+      # print('iter num is: ', iter_num)
+      try:
+        optimizer.zero_grad()
+        _, _, _, rpn_loss_cls, rpn_loss_bbox, loss_cls, loss_bbox = model(data['img'].cuda(), data['im_info'].cuda(), data['annot'].cuda())
+        loss = (rpn_loss_cls.mean() + rpn_loss_bbox.mean() \
+                + loss_cls.mean() + loss_bbox.mean())
+        if bool(loss == 0):
+          continue
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
+        optimizer.step()
+        loss_hist.append(float(loss))
+        epoch_loss.append(float(loss))
         if len(device_id) > 1:
           rpn_loss_cls = rpn_loss_cls.mean().item()
           rpn_loss_bbox = rpn_loss_bbox.mean().item()
           loss_cls = loss_cls.mean().item()
           loss_bbox = loss_bbox.mean().item()
+          loss = loss.mean().item()
         else:
           rpn_loss_cls = rpn_loss_cls.item()
           rpn_loss_bbox = rpn_loss_bbox.item()
           loss_cls = loss_cls.item()
           loss_bbox = loss_bbox.item()
+          loss = loss.item()
+        if iter_num % 200 == 0:
+          print(
+            'Epoch: {} | Iteration: {}/{} | loss: {:1.5f} | rpn bbox loss: {:1.5f} | rpn cls loss: {:1.5f} | bbox loss: {:1.5f} | cls loss: {:1.5f} | Running loss: {:1.5f}'.format(
+            epoch_num, iter_num, len(dataset_train)//args.batch_size, float(loss), float(rpn_loss_bbox), float(rpn_loss_cls), float(loss_bbox), float(loss_cls), np.mean(loss_hist)))
 
-        current_lr = get_current_lr(optimizer)   
+        del rpn_loss_cls
+        del rpn_loss_bbox
+        del loss_bbox
+        del loss_cls
+      except Exception as e:
+        print(e)
+        continue
 
-        print("[epoch %2d][iter %4d/%4d] loss: %.4f lr: %.8f" \
-                                % (epoch, iters, iters_per_epoch, loss_temp, current_lr))
-        print("\t\t\trpn_cls: %.4f, rpn_box: %.4f, rcnn_cls: %.4f, rcnn_box %.4f" \
-                      % (rpn_loss_cls, rpn_loss_bbox, loss_cls, loss_bbox))
-    state_dict = model.module.state_dict()
-    if epoch!=0 and epoch%30==0:
+    if args.dataset == 'coco':
+
+      print('Evaluating dataset')
+
+      coco_eval.evaluate_coco(dataset_val, model)
+
+    elif args.dataset == 'csv' and args.csv_val is not None:
+
+      print('Evaluating dataset')
+
+      mAP = csv_eval.evaluate(dataset_val, model)
+    elif args.dataset == 'xml' and args.val_path is not None:
+
+      print('Evaluating dataset')
+
+      mAP = voc_eval.evaluate(dataset_val, model)
+
+    try:
+      is_best_map = mAP[0][0] > best_map
+      best_map = max(mAP[0][0], best_map)
+    except:
+      pass
+    if is_best_map:
+      print("Get better map: ", best_map)
       torch.save({
-      'epoch': epoch,
-      'save_dir': save_dir,
-      'state_dict': state_dict},
-      os.path.join(save_dir, 'hh_fpn_' + '%04d.ckpt' % epoch))
+        'epoch': epoch_num,
+        'save_dir': args.save_dir,
+        'state_dict': state_dict},
+        os.path.join(args.save_dir, args.model_name + 'best_.ckpt'))
+    else:
+      print("Current map: ", best_map)
+    scheduler.step(best_map)
+
+    state_dict = model.module.state_dict()
+    if epoch_num != 0 and epoch_num % 5 == 0:
+      torch.save({
+        'epoch': epoch_num,
+        'save_dir': args.save_dir,
+        'state_dict': state_dict},
+        os.path.join(args.save_dir, args.model_name + '%04d.ckpt' % epoch_num))
 
 if __name__ == "__main__":
   main()
+
+

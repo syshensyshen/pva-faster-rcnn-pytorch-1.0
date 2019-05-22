@@ -14,16 +14,14 @@ import uuid
 import cv2
 import random
 
-#SCALES = (416, 448, 480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800, 832, 864)
-SCALES = (864, 896)
-#SCALES = (416, 448, 480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800, 832, 864, 896, 928, 992, 1024, 1056, 1088, 1120, 1152, 1184, 1216, 1248, 1280)
-#SCALES = (608, 640, 672, 704, 736, 768, 800, 832, 864)
-#SCALES = (576, 608, 640)
+SCALES = (512, 544, 576, 608, 640, 672, 704, 736, 768)
+#SCALES = (448, 480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800, 832, 864)
+#SCALES = (416, 448, 480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800, 832, 864, 896, 928, 960, 992, 1024, 1056, 1088, 1120, 1152, 1184, 1216, 1248, 1280)
 #PIXEL_MEANS = np.array([[[102.9801, 115.9465, 122.7717]]])
 PIXEL_MEANS = np.array([[[0.485, 0.456, 0.406]]])
 PIXEL_STDS = np.array([[[0.229, 0.224, 0.225]]])
 SCALE_MULTIPLE_OF = 32
-MAX_SIZE = 960
+MAX_SIZE = 768
 
 
 #class_list = ('__background__', 'left', 'right', 'top','bottom', 'middle', 'back', 'label', 'lable')
@@ -34,20 +32,13 @@ MAX_SIZE = 960
 #                         'motorbike', 'person', 'pottedplant',
 #                         'sheep', 'sofa', 'train', 'tvmonitor',
 #                         'rebar')
-#class_list = ('__background__', 'HM', 'TT')
-#class_list = ('__background__', 'SL', 'M', 'QZ', 'FC', 'HH', 'HM', 'AJ', 'PP', 'GG', 'TT')
-class_list = ('__background__', 'QZ', 'FC', 'HH', 'HM', 'AJ', 'PP', 'GG', 'M', 'TT')
-#class_list = ('__background__', 'left', 'top', 'middle', 'back', 'label')
-#class_list = ('__background__', 'HH')
-#class_list = ('__background__', 'object_1', 'object_2', 'object_3', 'object_4', 'object_5', \
-#             'object_6', 'object_7','object_8', 'object_9', 'object_10', 'object_11', 'object_12', \
-#              'object_13', 'object_14', 'object_15', 'object_16', 'object_17', 'object_18', 'object_19', \
-#              'object_20', 'object_21', 'object_22', 'object_23', 'object_24', 'object_25', 'object_26', \
-#              'object_27', 'object_28', 'object_29', 'object_30', 'object_31', 'object_32' \
-#              'object_33', 'object_34', 'object_35', 'object_36', 'object_37', 'object_38', \
-#              'object_39', 'object_40', 'object_41', 'object_42', 'object_43', 'object_44', \
-#              'object_45')#, 'object_46', 'object_47','object_48', 'object_49')
-
+#class_list = ('__background__', 'SL', 'HH', 'FC', 'GG', 'QZ', 'M', 'TT', 'AJ', 'HM', 'PP')
+#class_list = ('__background__', 'SL', 'YH', 'FC', 'M')
+#class_list = ('__background__', 'HH', 'SL', 'M')
+#class_list = ('__background__', 'LH', 'SC', 'LY', 'SB', 'LD', 'DX', 'YH', 'QZ', 'QM', 'AJ', 'FC')
+#class_list = ('__background__', 'Lh', 'DX', 'YS', 'LY', 'AJ', 'FC', 'LH')
+#class_list = ('__background__', 'HH', 'SL', 'YHA', 'HHS', 'KP', 'YHS', 'WQ', 'SLQ', 'SG', 'NFC', 'FC', 'MK', 'JD', 'HZ', 'SSS')
+class_list = ('__background__', 'FC', 'MK', 'SX', 'SH', 'LS', 'JG', 'HH', 'YHA', 'ZF', 'KQ', 'WC', 'WQ', 'RK', 'KP', 'KZ', 'YHS', 'JD', 'KT', 'SL', 'DJ', 'SL', 'KQ')
 class_to_ind = dict(zip(class_list, range(0, len(class_list))))
 
 def load_pascal_annotation(xml_path):
@@ -72,26 +63,37 @@ def load_pascal_annotation(xml_path):
         y1 = int(bbox.find('ymin').text) #- 1
         x2 = int(bbox.find('xmax').text) #- 1
         y2 = int(bbox.find('ymax').text) #- 1
-        x1 = x1 if x1 >= 0 else 0
-        y1 = y1 if y1 >= 0 else 0
-        x2 = x2 if x2 >= 0 else 0
-        y2 = y2 if y2 >= 0 else 0
+        #x1 = x1 if x1 >= 0 else 0
+        #y1 = y1 if y1 >= 0 else 0
+        #x2 = x2 if x2 >= 0 else 0
+        #y2 = y2 if y2 >= 0 else 0
         x1 = x1 if x1 < 5000 else 0
         y1 = y1 if y1 < 5000 else 0
         x2 = x2 if x2 < 5000 else 0
         y2 = y2 if y2 < 5000 else 0
-        #cls = self._class_to_ind[obj.find('name').text.lower().strip()]        
+        #cls = self._class_to_ind[obj.find('name').text.lower().strip()]
         class_name = obj.find('name').text.strip()
-        if class_name == 'bottom' or class_name == 'horizon':
-            class_name = 'top'
-        if class_name == 'right' or class_name == 'vertical':
-            class_name = 'left'
-        if class_name == 'lable':
-            class_name = 'label'
+        class_name = class_name.upper()
+        #print(class_name)
+        #if class_name in ['SLA', 'SLZ', 'SLQ', 'SLX', 'SLD']:
+        #    class_name = 'SL'
+        #if class_name in ['HHA', 'HHZ', 'HHX', 'HHD']:
+        #    class_name = 'HH'
+        #if class_name == 'BQD':
+        #    class_name = 'M'
+
+        # if class_name == 'HZW':
+        #     class_name = 'HZ'
+        # if class_name in ['SSS', 'CCC', 'PP', 'XZF', 'LGO', 'ZF']:
+        #     class_name = 'SSS'
+        # if 'SG.' == class_name:
+        #     class_name = 'SG'
+
+        if class_name in ['DJ', 'CD', 'CJ']:
+            class_name = 'DJ'
+
         if not class_name in class_list:
             continue
-        if class_name == 'H':
-            class_name = 'HH'
         cls = class_to_ind[class_name]
         boxes[ix, :] = [x1, y1, x2, y2]
         gt_classes[ix] = cls
@@ -210,12 +212,13 @@ def prepareBatchData(xml_path, img_path, batch_size, xmllist):
         #print(xml)
         im = cv2.imread(img_path + '/' + name.replace('.xml', postfix))
         if im is None:
-            print(img_path + '/' + name.replace('.xml', postfix))
+            print('pascal_voc.py line 198, im is none', img_path + '/' + name.replace('.xml', postfix))
             continue
         #print(im.shape)
         ims.append(im)
         boxes.append(xml_context['boxes'])
         labels.append(xml_context['gt_classes'])
+    max_len = 2 if max_len <  2 else max_len
     gt_boxes = np.zeros((batch_size, max_len, 5), dtype=np.float32)    
     im_scales = np.zeros((batch_size, 4), dtype = np.float32)
     target_size = SCALES[random.randint(0, len(SCALES)-1)]

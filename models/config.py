@@ -13,10 +13,18 @@ __C = edict()
 #   from fast_rcnn_config import cfg
 cfg = __C
 
+__C.MODEL = edict()
+__C.MODEL.RCNN_CIN = 768
+__C.MODEL.RPN_CIN = 256
+__C.MODEL.RCNN_LAST = 4096
+__C.MODEL.BACKBONE = 'shortlitehyper'
+__C.MODEL.DOUT_BASE_MODEL = 336 #176 #336 #544
 #
 # Training options
 #
 __C.TRAIN = edict()
+
+__C.TRAIN.HARD_MINING = False
 
 # Initial learning rate
 __C.TRAIN.LEARNING_RATE = 0.001
@@ -75,17 +83,17 @@ __C.TRAIN.TRIM_WIDTH = 600
 __C.TRAIN.IMS_PER_BATCH = 1
 
 # Minibatch size (number of regions of interest [ROIs])
-__C.TRAIN.BATCH_SIZE = 128
+__C.TRAIN.BATCH_SIZE = 256
 
 # Fraction of minibatch that is labeled foreground (i.e. class > 0)
 __C.TRAIN.FG_FRACTION = 0.25
 
 # Overlap threshold for a ROI to be considered foreground (if >= FG_THRESH)
-__C.TRAIN.FG_THRESH = 0.7
+__C.TRAIN.FG_THRESH = 0.5
 
 # Overlap threshold for a ROI to be considered background (class = 0 if
 # overlap in [LO, HI))
-__C.TRAIN.BG_THRESH_HI = 0.3
+__C.TRAIN.BG_THRESH_HI = 0.5
 __C.TRAIN.BG_THRESH_LO = 0.0
 
 # Use horizontally-flipped images during training?
@@ -138,7 +146,7 @@ __C.TRAIN.RPN_CLOBBER_POSITIVES = False
 # Max number of foreground examples
 __C.TRAIN.RPN_FG_FRACTION = 0.5
 # Total number of examples
-__C.TRAIN.RPN_BATCHSIZE = 256
+__C.TRAIN.RPN_BATCHSIZE = 512
 # NMS threshold used on RPN proposals
 __C.TRAIN.RPN_NMS_THRESH = 0.7
 # Number of top scoring boxes to keep before apply NMS to RPN proposals
@@ -198,14 +206,14 @@ __C.TEST.RPN_PRE_NMS_TOP_N = 6000
 __C.TEST.RPN_POST_NMS_TOP_N = 300
 
 # Proposal height and width both need to be greater than RPN_MIN_SIZE (at orig image scale)
-__C.TEST.RPN_MIN_SIZE = 16
+__C.TEST.RPN_MIN_SIZE = 8
 
 # Testing mode, default to be 'nms', 'top' is slower but better
 # See report for details
 __C.TEST.MODE = 'nms'
 
 # Only useful when TEST.MODE is 'top', specifies the number of top proposals to select
-__C.TEST.RPN_TOP_N = 5000
+__C.TEST.RPN_TOP_N = 2000
 
 #
 # ResNet options
@@ -251,7 +259,7 @@ __C.MOBILENET.DEPTH_MULTIPLIER = 1.
 # coordinates. If DEDUP_BOXES > 0, then DEDUP_BOXES is used as the scale factor
 # for identifying duplicate boxes.
 # 1/16 is correct for {Alex,Caffe}Net, VGG_CNN_M_1024, and VGG16
-__C.DEDUP_BOXES = 1. / 16.
+#__C.DEDUP_BOXES = 1. / 16.
 
 # Pixel mean values (BGR order) as a (1, 1, 3) array
 # We use the same pixel mean for all networks even though it's not exactly what
@@ -285,31 +293,25 @@ __C.GPU_ID = 0
 __C.POOLING_MODE = 'align'
 
 # Size of the pooled region after RoI pooling
-__C.POOLING_SIZE = 6
+__C.POOLING_SIZE = 7
 
 # Maximal number of gt rois in an image during Training
 __C.MAX_NUM_GT_BOXES = 20
 
 # Anchor scales for RPN
 #__C.ANCHOR_SCALES = [8,16,32]
-__C.ANCHOR_SCALES = [2, 3, 5, 9, 16, 32]
+#__C.ANCHOR_SCALES = [2, 3, 5, 9, 16, 32]
+__C.ANCHOR_SCALES = [1.2, 2.5, 6, 10, 14, 20, 32, 64, 80]
+#__C.ANCHOR_SCALES = [1.1, 2.4, 5, 16, 32, 64, 128]
 
 # Anchor ratios for RPN
 #__C.ANCHOR_RATIOS = [0.5,1,2]
-__C.ANCHOR_RATIOS = [0.333, 0.5, 0.667, 1.0, 1.5, 2.0, 3]
+#__C.ANCHOR_RATIOS = [0.333, 0.5, 0.667, 1, 1.5, 2, 3]
+__C.ANCHOR_RATIOS = [0.09, 0.133, 0.333, 0.5, 0.667, 1.0, 1.5, 2.0, 3, 7.5, 11]
+#__C.ANCHOR_RATIOS = [0.0625, 0.125, 0.25, 0.5, 1.0, 2.0, 4, 8, 16]
 
 # Feature stride for RPN
-__C.FEAT_STRIDE = [16]
-
-__C.FEAT_STRIDES = [16]
-
-# Anchor scales for RPN_FPN
-#__C.FPN_ANCHOR_SCALES = [32, 64, 128, 256, 512]
-__C.FPN_ANCHOR_SCALES = [[8, 16],[32, 64], [128, 256], [256, 512], [512, 1024]]
-# Feature stride for RPN_FPN
-__C.FPN_FEAT_STRIDES = [4, 8, 16, 32, 64]
-# Anchor stride for RPN_FPN
-__C.FPN_ANCHOR_STRIDE = 1
+__C.FEAT_STRIDE = [8]
 
 __C.CUDA = False
 

@@ -386,6 +386,95 @@ def pvanet(**kwargs):
 
     return model
 
+class shortpvahyper(nn.Module):
+    # This class is im
+    def __init__(self, pretrained=False):
+        super(shortpvahyper, self).__init__()
+        #self.out_channels = out_channels
+
+        self.conv1 = nn.Sequential(
+            mCReLU_base(3, 16, kernelsize=3, stride=2, lastAct=False),
+            nn.Conv2d(32, 16, kernel_size=1, stride=1),
+            nn.Conv2d(16, 16, kernel_size=3, stride=1),
+            nn.Conv2d(16, 16, kernel_size=3, stride=1),
+            nn.Conv2d(16, 32, kernel_size=1, stride=1),
+            nn.MaxPool2d(3, padding=1, stride=2)
+        )
+
+        # 1/4
+        self.conv2 = nn.Sequential(
+            mCReLU_residual(32, 24, 24, 64, kernelsize=3, preAct=True, lastAct=False, in_stride=1, proj=True),
+            #mCReLU_residual(64, 24, 24, 64, kernelsize=3, preAct=True, lastAct=False),
+            #mCReLU_residual(64, 24, 24, 64, kernelsize=3, preAct=True, lastAct=False)
+        )
+
+        # 1/8
+        self.conv3 = nn.Sequential(
+            mCReLU_residual(64, 48, 48, 128, kernelsize=3, preAct=True, lastAct=False, in_stride=2, proj=True),
+            #mCReLU_residual(128, 48, 48, 128, kernelsize=3, preAct=True, lastAct=False),
+            #mCReLU_residual(128, 48, 48, 128, kernelsize=3, preAct=True, lastAct=False),
+            #mCReLU_residual(128, 48, 48, 128, kernelsize=3, preAct=True, lastAct=False)
+        )
+
+        # 1/16
+        self.conv4 = nn.Sequential(
+            self.gen_InceptionA(128, 2, True),
+        )
+
+        # 1/32
+        self.conv5 = nn.Sequential(
+            self.gen_InceptionB(256, 2, True),
+            nn.ReLU(inplace=True)
+        )
+
+        self.downsample1 = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+
+    def forward(self, x):
+        x0 = self.conv1(x)
+        x1 = self.conv2(x0)         # 1/4  64
+        x2 = self.conv3(x1)         # 1/8  128
+        x3 = self.conv4(x2)         # 1/16 256
+        x4 = self.conv5(x3)         # 1/32 384
+
+        downsample1 = self.downsample1(x1)
+        upsample1 = F.interpolate(x4, scale_factor=2, mode="nearest")
+        x3 = torch.cat((x3, upsample1), 1)
+        upsample2 = F.interpolate(x3, scale_factor=2, mode="nearest")
+        print(downsample1.shape, x2.shape, upsample2.shape)
+        features = torch.cat((downsample1, x2, upsample2), 1)
+        return features # 544
+
+    def gen_InceptionA(self, n_in, stride=1, poolconv=False, n_out=256):
+        if (n_in != n_out) or (stride > 1):
+            proj = True
+        else:
+            proj = False
+
+        module = Inception(n_in, n_out, preAct=True, lastAct=False, in_stride=stride, proj=proj) \
+                    .add_convs([1], [64]) \
+                    .add_convs([1, 3], [48, 128]) \
+                    .add_convs([1, 3, 3], [24, 48, 48])
+
+        if poolconv:
+            module.add_poolconv(3, 128)
+
+        return module.finalize()
+
+    def gen_InceptionB(self, n_in, stride=1, poolconv=False, n_out=384):
+        if (n_in != n_out) or (stride > 1):
+            proj = True
+        else:
+            proj = False
+
+        module = Inception(n_in, n_out, preAct=True, lastAct=False, in_stride=stride, proj=proj) \
+                      .add_convs([1], [64]) \
+                      .add_convs([1, 3], [96, 192]) \
+                      .add_convs([1, 3, 3], [32, 64, 64])
+
+        if poolconv:
+            module.add_poolconv(3, 128)
+
+        return module.finalize()
 
 class pvaHyper(PVANetFeat):
     '''
@@ -417,7 +506,7 @@ class pva_net(pva_faster_rcnn):
       pva_faster_rcnn.__init__(self, classes, class_agnostic)           
 
   def _init_modules(self):
-    pva = pvaHyper()
+    #pva = pvaHyper()
     #self.pretrained = False
     if self.pretrained:
         print("Loading pretrained weights from %s" %(self.model_path))
@@ -430,7 +519,7 @@ class pva_net(pva_faster_rcnn):
         pva.load_state_dict(model_dict)
 
 
-    self.RCNN_base = pva
+    self.RCNN_base = shortpvahyper()
     
     self.RCNN_cls_score = nn.Linear(self.rcnn_din, self.n_classes)
 

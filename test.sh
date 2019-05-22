@@ -1,5 +1,6 @@
-CUDA_VISIBLE_DEVICES=0 python predictor.py \
-	--img_path /data/datasets/defects-checked/20190219-seg_608/ \
+CUDA_VISIBLE_DEVICES=1 python test_net.py \
+	--img_path  /data/datasets/defects/middle-bright-HH/ \
+	--xml_path /data/datasets/defects/middle-bright-HH/ \
 	--save_dir ./outputs/ \
-	--network lite --classes 2 \
-	--model ./save_models/hh_0330.ckpt
+	--network lite --classes 3 \
+	--model ./save_models/hh_0325_0005.ckpt

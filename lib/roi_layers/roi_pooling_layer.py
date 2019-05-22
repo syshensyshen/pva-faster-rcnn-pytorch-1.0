@@ -4,7 +4,6 @@ from torch import nn
 from torch.autograd import Function
 from torch.autograd.function import once_differentiable
 from torch.nn.modules.utils import _pair
-import numpy as np
 
 from models import _C
 
@@ -53,9 +52,7 @@ class ROIPoolingLayer(nn.Module):
         self.output_size = output_size
         self.spatial_scale = spatial_scale
 
-    def forward(self, input, rois, spatial_scale=1.0/16.0):
-        if torch.abs(1.0/self.spatial_scale - 1.0/spatial_scale) > 1:
-            self.spatial_scale = spatial_scale
+    def forward(self, input, rois):
         return roi_pool(input, rois, self.output_size, self.spatial_scale)
 
     def __repr__(self):

@@ -33,19 +33,11 @@ from models.resnet import resnet
 
 PIXEL_MEANS = np.array([[[0.485, 0.456, 0.406]]])
 PIXEL_STDS = np.array([[[0.229, 0.224, 0.225]]])
-class_list = ('__background__', 'object_1', 'object_2', 'object_3', 'object_4', 'object_5', \
-              'object_6', 'object_7','object_8', 'object_9', 'object_10', 'object_11', 'object_12', \
-              'object_13', 'object_14', 'object_15', 'object_16', 'object_17', 'object_18', 'object_19', \
-              'object_20', 'object_21', 'object_22', 'object_23', 'object_24', 'object_25', 'object_26', \
-              'object_27', 'object_28', 'object_29', 'object_30', 'object_31', 'object_32' \
-              'object_33', 'object_34', 'object_35', 'object_36', 'object_37', 'object_38', \
-              'object_39', 'object_40', 'object_41', 'object_42', 'object_43', 'object_44', \
-              'object_45')#, 'object_46', 'object_47','object_48', 'object_49')
-
+class_list = ('__background__', 'SL', 'FC', 'YH', 'M')
 
 def prepareTestData(target_size, im, SCALE_MULTIPLE_OF, MAX_SIZE):
   batch_size = 1
-  width, height, channles = get_target_size(736, im, 32, 1440)
+  width, height, channles = get_target_size(target_size, im, 32, MAX_SIZE)
   im_scales = np.zeros((batch_size, 4), dtype = np.float32)
   gt_boxes = np.zeros((batch_size, 1, 5), dtype=np.float32)
   im_blobs = np.zeros((batch_size, channles, height, width), dtype = np.float32)  
@@ -114,7 +106,7 @@ def im_detect(data, model, batch_size, thresh=0.8, nms_thresh=0.25, classes=2):
     pred_boxes = bbox_transform_inv(rois[:,:,1:5], bbox_pred, batch_size, std, mean)
     pred_boxes = clip_boxes(pred_boxes, im_info_tensor.data, 1)
     scores = cls_prob
-    results = []
+    resluts = []
     #print(rois.shape, scores.shape, rois.shape, bbox_pred.shape, classes)
     for index in range(1, classes):
         cls_scores = scores[0,:,index]
@@ -134,9 +126,9 @@ def im_detect(data, model, batch_size, thresh=0.8, nms_thresh=0.25, classes=2):
         bboxes_keep[:,3] /= im_info_tensor[0,3]
         if bboxes_keep.size(0) > 0:
           result = np.zeros((bboxes_keep.size(0), 6), dtype=np.float32)
-          result[:,0:4] = bboxes_keep.cpu()
-          result[:,4] = cls_keep.cpu()
-          result[:,5] = index
+          result [:,0:4] = bboxes_keep.cpu()
+          result [:,4] = cls_keep.cpu()
+          result [:,5] = index
           results.append(reslut)
   return results
 
@@ -156,27 +148,6 @@ def init_model(model_path, num_class, model_name):
     return model
 
 def predict(model, img, batch_size=1, thresh=0.6, nms_thresh=0.25, classes=9):
-    data = prepareBatchData(608, img, 32, 1440)
+    data = prepareBatchData(640, img, 32, 1440)
     results = im_detect(data, model, batch_size, thresh, nms_thresh, classes)
     return results
-
-def predict(model, img, batch_size=1, thresh=0.6, nms_thresh=0.25, classes=9):
-  data = prepareBatchData(608, img, 32, 1440)
-  results = im_detect(data, model, batch_size, thresh, nms_thresh, classes)
-  predict_ = []
-  for result in results:
-    bbox = result[:,0:4]
-    #score = result[:,4]
-    index = result[:,5]
-    x1 = int(bbox[0])
-    y1 = int(bbox[1])
-    x2 = int(bbox[2])
-    y2 = int(bbox[3])
-    dict_ = {}
-    dict_['label'] = class_list[index]
-    dict_['left'] = x1
-    dict_['top'] = y1
-    dict_['right'] = x2
-    dict_['bottom'] = y2
-    predict_.append(dict_)
-  return predict_

@@ -25,29 +25,30 @@ class pva_faster_rcnn(nn.Module):
     """ faster RCNN """
     def __init__(self, classes, class_agnostic):
         super(pva_faster_rcnn, self).__init__()
-        #self.classes = classes
         self.n_classes = classes
         self.class_agnostic = class_agnostic
         # loss
         self.RCNN_loss_cls = 0
         self.RCNN_loss_bbox = 0
-        self.rcnn_din = 4096
-        self.rpn_din = 512
+        self.rcnn_din = cfg.MODEL.RCNN_CIN
+        self.rcnn_last_din = cfg.MODEL.RCNN_LAST
+        self.rpn_din = cfg.MODEL.RPN_CIN
 
         # define rpn
         self.RCNN_rpn = _RPN(self.dout_base_model, self.rpn_din)
         self.RCNN_proposal_target = _ProposalTargetLayer(self.n_classes)
 
-        # self.RCNN_roi_pool = _RoIPooling(cfg.POOLING_SIZE, cfg.POOLING_SIZE, 1.0/16.0)
-        # self.RCNN_roi_align = RoIAlignAvg(cfg.POOLING_SIZE, cfg.POOLING_SIZE, 1.0/16.0)
+        if cfg.POOLING_MODE == 'align':
+            self.RCNN_roi_pool = ROIAlignLayer((cfg.POOLING_SIZE, cfg.POOLING_SIZE), 1.0 / cfg.FEAT_STRIDE[0], 2)
+        elif cfg.POOLING_MODE == 'pool':
+            self.RCNN_roi_pool = ROIPoolingLayer((cfg.POOLING_SIZE, cfg.POOLING_SIZE), 1.0 / cfg.FEAT_STRIDE[0])
 
-        self.RCNN_roi_pool = ROIPoolingLayer((cfg.POOLING_SIZE, cfg.POOLING_SIZE), 1.0/16.0)
-        self.RCNN_roi_align = ROIAlignLayer((cfg.POOLING_SIZE, cfg.POOLING_SIZE), 1.0/16.0, 0)
         self.RCNN_top = nn.Sequential(OrderedDict([
             ('fc6_new',nn.Linear(self.dout_base_model * cfg.POOLING_SIZE * cfg.POOLING_SIZE, self.rcnn_din)),
             ('fc6_relu', nn.ReLU(inplace=True)),
-            ('fc7_new', nn.Linear(self.rcnn_din, self.rcnn_din, bias=True)),
-            ('fc7_relu', nn.ReLU(inplace=True))]))
+            ('fc7_new', nn.Linear(self.rcnn_din, self.rcnn_last_din, bias=True)),
+            ('fc7_relu', nn.ReLU(inplace=True))
+            ]))
 
     def forward(self, im_data, im_info, gt_boxes):
         batch_size = im_data.size(0)
@@ -81,11 +82,7 @@ class pva_faster_rcnn(nn.Module):
 
         rois = Variable(rois)
         # do roi pooling based on predicted rois
-
-        if cfg.POOLING_MODE == 'align':
-            pooled_feat = self.RCNN_roi_align(base_feat, rois.view(-1, 5))
-        elif cfg.POOLING_MODE == 'pool':
-            pooled_feat = self.RCNN_roi_pool(base_feat, rois.view(-1,5))
+        pooled_feat = self.RCNN_roi_pool(base_feat, rois.view(-1, 5))
 
         # feed pooled features to top model
         pooled_feat = self._head_to_tail(pooled_feat)
@@ -93,11 +90,6 @@ class pva_faster_rcnn(nn.Module):
 
         # compute bbox offset
         bbox_pred = self.RCNN_bbox_pred(pooled_feat)
-        #if self.training and not self.class_agnostic:
-        #    # select the corresponding columns according to roi labels
-        #    bbox_pred_view = bbox_pred.view(bbox_pred.size(0), int(bbox_pred.size(1) / 4), 4)
-        #    bbox_pred_select = torch.gather(bbox_pred_view, 1, rois_label.view(rois_label.size(0), 1, 1).expand(rois_label.size(0), 1, 4))
-        #    bbox_pred = bbox_pred_select.squeeze(1)
 
         # compute object classification probability
         cls_score = self.RCNN_cls_score(pooled_feat)
@@ -116,13 +108,10 @@ class pva_faster_rcnn(nn.Module):
 
         cls_prob = cls_prob.view(batch_size, rois.size(1), -1)
         bbox_pred = bbox_pred.view(batch_size, rois.size(1), -1)
-        #print(rois.shape)
-        #for index in range(0, 300):
-        #    if cls_prob[:,index,0] < 0.5:
-        #        print(cls_prob[:,index,:], rois[:,index,:])
-        #print(bbox_pred)
+
         if self.training:
-            return rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_bbox, RCNN_loss_cls, RCNN_loss_bbox, rois_label
+            #return rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_bbox, RCNN_loss_cls, RCNN_loss_bbox, rois_label
+            return rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_bbox, RCNN_loss_cls, RCNN_loss_bbox
         else:
             return rois, cls_prob, bbox_pred
 
@@ -143,152 +132,8 @@ class pva_faster_rcnn(nn.Module):
         normal_init(self.RCNN_rpn.RPN_bbox_pred, 0, 0.01, cfg.TRAIN.TRUNCATED)
         normal_init(self.RCNN_cls_score, 0, 0.01, cfg.TRAIN.TRUNCATED)
         normal_init(self.RCNN_bbox_pred, 0, 0.001, cfg.TRAIN.TRUNCATED)
-
-    def create_architecture(self):
-        self._init_modules()
-        self._init_weights()
-
-class pva_faster_rcnn_ex(nn.Module):
-    def freeze_bn(self):
-        '''Freeze BatchNorm layers.'''
-        for layer in self.modules():
-            if isinstance(layer, nn.BatchNorm2d):
-                layer.eval() 
-    """ faster RCNN """
-    def __init__(self, classes, class_agnostic):
-        super(pva_faster_rcnn_ex, self).__init__()
-        #self.classes = classes
-        self.n_classes = classes
-        self.class_agnostic = class_agnostic
-        # loss
-        self.RCNN_loss_cls = 0
-        self.RCNN_loss_bbox = 0
-        self.rcnn_din = 256
-        self.rpn_din = 64
-        self.strides = cfg.FEAT_STRIDES
-        self.roi_ops = []
-        self.RCNN_rpn = []
-        self.RCNN_proposal_target = []
-        self.nc_bbox_out = len(self.anchor_scales) * len(self.anchor_ratios) * 4
-
-        for index in range(len(self.strides)):
-            if cfg.POOLING_MODE == 'pooling':
-                roi_ops = ROIPoolingLayer((cfg.POOLING_SIZE, cfg.POOLING_SIZE), 1.0/float(self.strides[index]))
-            else:
-                roi_ops = ROIAlignLayer((cfg.POOLING_SIZE, cfg.POOLING_SIZE), 1.0/float(self.strides[index]), 0)
-            self.roi_ops.append(roi_ops)
-            self.RCNN_rpn.append(_RPN(self.dout_base_model, self.rpn_din))
-            self.RCNN_proposal_target.append(_ProposalTargetLayer(self.n_classes))
-
-        self.RCNN_top = nn.Sequential(OrderedDict([
-            ('fc6_new',nn.Linear(self.dout_base_model * cfg.POOLING_SIZE * cfg.POOLING_SIZE, self.rcnn_din)),
-            ('fc6_relu', nn.ReLU(inplace=True)),
-            ('fc7_new', nn.Linear(self.rcnn_din, self.rcnn_din, bias=True)),
-            ('fc7_relu', nn.ReLU(inplace=True))]))
-
-    def forward(self, im_data, im_info, gt_boxes):
-        batch_size = im_data.size(0)
-
-        im_info = im_info.data
-        gt_boxes = gt_boxes.data
-        #num_boxes = num_boxes.data
-
-        # feed image data to base model to obtain base feature map
-        base_feat = self.RCNN_base(im_data)
-        #print(base_feat.shape)
-        # feed base feature map tp RPN to obtain rois
-        rois = []
-        rpn_loss_cls = []
-        rpn_loss_bbox = []
-        labels = []
-        targets = []
-        inside_ws = []
-        outside_ws = []
-        pooled_feat = []
-        for index in range(len(self.strides)):
-            rois_tmp, rpn_loss_cls_tmp, rpn_loss_bbox_tmp = \
-                self.RCNN_rpn[index](base_feat[index], im_info, gt_boxes)
-            # if it is training phrase, then use ground trubut bboxes for refining
-            if self.training:
-                rois_tmp, label_tmp, target_tmp, inside_ws_tmp, outside_ws_tmp = \
-                    self.RCNN_proposal_target[index](rois_tmp, gt_boxes)
-                label_tmp = Variable(label_tmp.view(-1).long())
-                target_tmp = Variable(target_tmp.view(-1, target_tmp.size(2)))
-                inside_ws_tmp = Variable(inside_ws_tmp.view(-1, inside_ws_tmp.size(2)))
-                outside_ws_tmp = Variable(outside_ws_tmp.view(-1, outside_ws_tmp.size(2)))
-                rpn_loss_cls.append(rpn_loss_cls_tmp)
-                rpn_loss_bbox.append(rpn_loss_bbox_tmp)
-                labels.append(label_tmp)
-                targets.append(target_tmp)
-                inside_ws.append(inside_ws_tmp)
-                outside_ws.append(outside_ws_tmp)
-            rois_tmp = Variable(rois_tmp)
-            rois.append(rois_tmp)
-            # do roi pooling based on predicted rois
-            pooled_feat_tmp = self.roi_ops[index](base_feat[index], rois_tmp.view(-1, 5))
-            # feed pooled features to top model
-            pooled_feat_tmp = self._head_to_tail(pooled_feat_tmp)
-            pooled_feat.append(pooled_feat_tmp)
-
-        # compute bbox offset
-        bbox_pred = self.RCNN_bbox_pred(pooled_feat)
-
-        # compute object classification probability
-        cls_score = self.RCNN_cls_score(pooled_feat)
-        cls_prob = F.softmax(cls_score, 1)
-
-        RCNN_loss_cls = 0
-        RCNN_loss_bbox = 0
-
-        if self.training:
-            # classification loss
-            rois_label = torch.Tensor(len(self.strides) * cfg.TRAIN.BATCH_SIZE, 5)            
-            rois_target = torch.Tensor(len(self.strides) * cfg.TRAIN.BATCH_SIZE, self.nc_bbox_out)
-            rois_inside_ws = torch.Tensor(len(self.strides) * cfg.TRAIN.BATCH_SIZE, self.nc_bbox_out)
-            outside_ws = torch.Tensor(len(self.strides) * cfg.TRAIN.BATCH_SIZE, self.nc_bbox_out)
-            torch.cat(labels, out=rois_label)
-            rois_label = Variable(rois_label, requires_grad=False)
-            torch.cat(targets, out=rois_target)
-            rois_target = Variable(rois_target, requires_grad=False)
-            torch.cat(inside_ws, out=rois_inside_ws)
-            rois_outside_ws = Variable(rois_inside_ws, requires_grad=False)
-            torch.cat(outside_ws, out=rois_outside_ws)
-            rois_outside_ws = Variable(rois_outside_ws, requires_grad=False)
-
-            RCNN_loss_cls = F.cross_entropy(cls_score, rois_label)
-
-            # bounding box regression L1 loss 
-            RCNN_loss_bbox = _smooth_l1_loss(bbox_pred, rois_target, rois_inside_ws, rois_outside_ws)
-
-        torch.cat(rois, out=rois)
-        rois = Variable(rois, requires_grad=False)
-
-        cls_prob = cls_prob.view(batch_size, rois.size(1), -1)
-        bbox_pred = bbox_pred.view(batch_size, rois.size(1), -1)
-
-        if self.training:
-            return rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_bbox, RCNN_loss_cls, RCNN_loss_bbox, rois_label
-        else:
-            return rois, cls_prob, bbox_pred
-
-    def _init_weights(self):
-        def normal_init(m, mean, stddev, truncated=False):
-            """
-            weight initalizer: truncated normal and random normal.
-            """
-            # x is a parameter
-            if truncated:
-                m.weight.data.normal_().fmod_(2).mul_(stddev).add_(mean) # not a perfect approximation
-            else:
-                m.weight.data.normal_(mean, stddev)
-                m.bias.data.zero_()
-
-        for index in range(len(self.strides)):
-            normal_init(self.RCNN_rpn[index].RPN_Conv, 0, 0.01, cfg.TRAIN.TRUNCATED)
-            normal_init(self.RCNN_rpn[index].RPN_cls_score, 0, 0.01, cfg.TRAIN.TRUNCATED)
-            normal_init(self.RCNN_rpn[index].RPN_bbox_pred, 0, 0.01, cfg.TRAIN.TRUNCATED)
-        normal_init(self.RCNN_cls_score, 0, 0.01, cfg.TRAIN.TRUNCATED)
-        normal_init(self.RCNN_bbox_pred, 0, 0.001, cfg.TRAIN.TRUNCATED)
+        normal_init(self.RCNN_top.fc6_new, 0, 0.01, cfg.TRAIN.TRUNCATED)
+        normal_init(self.RCNN_top.fc7_new, 0, 0.01, cfg.TRAIN.TRUNCATED)
 
     def create_architecture(self):
         self._init_modules()
