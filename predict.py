@@ -26,7 +26,8 @@ from collections import OrderedDict
 from tools.net_utils import adjust_learning_rate
 from lib.datasets.pascal_voc import get_target_size
 from lib.datasets.pascal_voc import im_list_to_blob
-from lib.roi_layers.nms import nms
+# from lib.roi_layers.nms import nms
+from torchvision.ops import nms
 from models.config import cfg
 import cv2
 from models.resnet import resnet

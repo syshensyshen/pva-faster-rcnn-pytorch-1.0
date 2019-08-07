@@ -9,11 +9,10 @@ import numpy as np
 from models.config import cfg
 from lib.rpn.rpn_regression import _RPN
 from collections import OrderedDict
-from lib.roi_layers.roi_align_layer import ROIAlignLayer
-from lib.roi_layers.roi_pooling_layer import ROIPoolingLayer
-
-# from model.roi_pooling.modules.roi_pool import _RoIPooling
-# from model.roi_align.modules.roi_align import RoIAlignAvg
+# from lib.roi_layers.roi_align_layer import ROIAlignLayer
+# from lib.roi_layers.roi_pooling_layer import ROIPoolingLayer
+from torchvision.ops import RoIPool as ROIPoolingLayer
+from torchvision.ops import RoIAlign as ROIAlignLayer
 
 from lib.rpn.proposal_target_layer import _ProposalTargetLayer
 import time

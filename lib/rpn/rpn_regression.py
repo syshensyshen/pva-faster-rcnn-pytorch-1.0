@@ -47,7 +47,7 @@ class _RPN(nn.Module):
         self.RPN_proposal = ProposalLayer(self.feat_stride, self.anchor_scales, self.anchor_ratios)
 
         # define anchor target layer
-        self.RPN_anchor_target = AnchorTargetLayer(self.feat_stride, self.anchor_scales, self.anchor_ratios)
+        self.RPN_anchor_target = AnchorTargetLayer(cfg)
 
         self.rpn_loss_cls = 0
         self.rpn_loss_box = 0

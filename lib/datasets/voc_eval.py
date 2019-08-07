@@ -7,7 +7,8 @@ import os
 import torch
 
 from models.config import cfg
-from lib.roi_layers.nms import nms
+# rom lib.roi_layers.nms import nms
+from torchvision.ops import nms
 
 
 def compute_overlap(a, b):
