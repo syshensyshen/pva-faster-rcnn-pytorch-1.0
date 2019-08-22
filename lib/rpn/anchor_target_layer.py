@@ -557,7 +557,7 @@ class AnchorTargetLayer(nn.Module):
             sum_bg = torch.sum((label == 0).int(), 0)
 
             if sum_fg > num_fg:
-                fg_inds = torch.nonzero(label[i] == 1).view(-1)
+                fg_inds = torch.nonzero(label == 1).view(-1)
                 # torch.randperm seems has a bug on multi-gpu setting that cause the segfault.
                 # See https://github.com/pytorch/pytorch/issues/1868 for more details.
                 # use numpy instead.
