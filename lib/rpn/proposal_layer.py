@@ -14,129 +14,87 @@ import torch.nn as nn
 import numpy as np
 import math
 import yaml
-from models.config import cfg
+#from models.config import cfg
 from lib.rpn.generate_anchors import generate_anchors
 from lib.rpn.bbox_transform import bbox_transform_inv, clip_boxes, clip_boxes_batch
-from lib.roi_layers.nms import nms
+#from lib.roi_layers.nms import nms
+import torch.nn.functional as F
+from torchvision.ops import nms
 import pdb
 
 DEBUG = False
 
+
 class ProposalLayer(nn.Module):
 
-    def __init__(self, feat_stride, scales, ratios):
+    def __init__(self, feat_stride, nms_thresh, min_size):
         super(ProposalLayer, self).__init__()
 
+        # self.cfg = cfg
+        # self.pre_nms = pre_nms
+        # self.post_nms = post_nms
+        self.nms_thresh = nms_thresh
+        self.min_size = min_size
         self._feat_stride = feat_stride
-        self._anchors = torch.from_numpy(generate_anchors(scales=np.array(scales),
-            ratios=np.array(ratios))).float()
-        self._num_anchors = self._anchors.size(0)
 
-    def forward(self, input):
-
-        scores = input[0][:, self._num_anchors:, :, :]
-        bbox_deltas = input[1]
-        im_info = input[2]
-        cfg_key = input[3]
-
-        pre_nms_topN  = cfg[cfg_key].RPN_PRE_NMS_TOP_N
-        post_nms_topN = cfg[cfg_key].RPN_POST_NMS_TOP_N
-        nms_thresh    = cfg[cfg_key].RPN_NMS_THRESH
-        min_size      = cfg[cfg_key].RPN_MIN_SIZE
+    def forward(self, scores, bbox_deltas, anchors, num_anchors, im_info, pre_nms, post_nms, nms_thresh):
 
         batch_size = bbox_deltas.size(0)
 
-        feat_height, feat_width = scores.size(2), scores.size(3)
-        shift_x = np.arange(0, feat_width) * self._feat_stride
-        shift_y = np.arange(0, feat_height) * self._feat_stride
-        shift_x, shift_y = np.meshgrid(shift_x, shift_y)
-        shifts = torch.from_numpy(np.vstack((shift_x.ravel(), shift_y.ravel(),
-                                  shift_x.ravel(), shift_y.ravel())).transpose())
-        shifts = shifts.contiguous().type_as(scores).float()
+        batch_size, _, _, feat_width = scores.size()
 
-        A = self._num_anchors
-        K = shifts.size(0)
-
-        self._anchors = self._anchors.type_as(scores)
-        # anchors = self._anchors.view(1, A, 4) + shifts.view(1, K, 4).permute(1, 0, 2).contiguous()
-        anchors = self._anchors.view(1, A, 4) + shifts.view(K, 1, 4)
-        anchors = anchors.view(1, K * A, 4).expand(batch_size, K * A, 4)
+        anchors = anchors.reshape(1, -1, 4).expand(batch_size, -1, 4)
 
         # Transpose and reshape predicted bbox transformations to get them
         # into the same order as the anchors:
 
-        bbox_deltas = bbox_deltas.permute(0, 2, 3, 1).contiguous()
-        bbox_deltas = bbox_deltas.view(batch_size, -1, 4)
+        bbox_deltas = bbox_deltas.permute(0, 2, 3, 1).reshape(batch_size, -1, 4)
 
         # Same story for the scores:
-        scores = scores.permute(0, 2, 3, 1).contiguous()
-        scores = scores.view(batch_size, -1)
+        scores = F.softmax(scores.reshape(batch_size, 2, -1, feat_width), dim=1)
+        scores =  scores.reshape(batch_size, num_anchors *2 , -1, feat_width)[:, num_anchors:, :, :]
+        scores = scores.permute(0, 2, 3, 1).reshape(batch_size, -1)
 
         # Convert anchors into proposals via bbox transformations
         proposals = bbox_transform_inv(anchors, bbox_deltas, batch_size)
 
         # 2. clip predicted boxes to image
         proposals = clip_boxes(proposals, im_info, batch_size)
-        # proposals = clip_boxes_batch(proposals, im_info, batch_size)
 
-        # assign the score to 0 if it's non keep.
-        #keep = self._filter_boxes(proposals, min_size, im_info, batch_size)
+        # scores_keep = scores
+        # proposals_keep = proposals
+        # _, order = torch.sort(scores, 1, True)
+        output = torch.zeros((batch_size, post_nms, 5)).to(scores.device)
 
-        # trim keep index to make it euqal over batch
-        # keep_idx = torch.cat(tuple(keep_idx), 0)
-
-        # scores_keep = scores.view(-1)[keep_idx].view(batch_size, trim_size)
-        # proposals_keep = proposals.view(-1, 4)[keep_idx, :].contiguous().view(batch_size, trim_size, 4)
-
-        # _, order = torch.sort(scores_keep, 1, True)
-
-        scores_keep = scores
-        proposals_keep = proposals
-        _, order = torch.sort(scores_keep, 1, True)
-
-        output = scores.new(batch_size, post_nms_topN, 5).zero_()
         for i in range(batch_size):
-            # # 3. remove predicted boxes with either height or width < threshold
-            # # (NOTE: convert min_size to input image scale stored in im_info[2])
-            proposals_single = proposals_keep[i]
-            scores_single = scores_keep[i]
 
-            ##### filter le min size bbox
-            
-            #keep = self._filter_boxes(proposals_single, min_size, im_info[i])
-            #print(proposals_single.shape, keep.shape)
-            #proposals_single = proposals_single[keep]
-            #scores_single = scores_single[keep]            
+            proposals_single = proposals[i]
+            scores_single = scores[i]
 
-            # # 4. sort all (proposal, score) pairs by score from highest to lowest
-            # # 5. take top pre_nms_topN (e.g. 6000)
-            order_single = order[i]
-            #order_single = order_single[keep]
-            #print(proposals_single.shape, scores_single.shape, order_single.shape)
+            keep = self._filter_boxes(proposals_single, self.min_size, im_info[i])
+            # #print(proposals_single.shape, keep.shape)
+            proposals_single = proposals_single[keep]
+            scores_single = scores_single[keep]
+            _, order_single = torch.sort(scores_single, 0, True)
 
-            if pre_nms_topN > 0 and pre_nms_topN < scores_keep[i].numel():
-                order_single = order_single[:pre_nms_topN]
+            if pre_nms < scores_single.size(0):
+                order_single = order_single[:pre_nms]
 
-            proposals_single = proposals_single[order_single, :]
-            scores_single = scores_single[order_single].view(-1,1)
+            proposals_single = proposals_single[order_single]
+            scores_single = scores_single[order_single].reshape(-1)
 
-            # 6. apply nms (e.g. threshold = 0.7)
-            # 7. take after_nms_topN (e.g. 300)
-            # 8. return the top proposals (-> RoIs top)
-            keep_idx_i = nms(proposals_single, scores_single.squeeze(1), nms_thresh)
-            keep_idx_i = keep_idx_i.long().view(-1)
+            keep_idx_i = nms(proposals_single, scores_single, nms_thresh).long()
 
-            if post_nms_topN > 0:
-                keep_idx_i = keep_idx_i[:post_nms_topN]
-            proposals_single = proposals_single[keep_idx_i, :]
-            scores_single = scores_single[keep_idx_i, :]
+            if post_nms > 0:
+                keep_idx_i = keep_idx_i[:post_nms]
+            proposals_single = proposals_single[keep_idx_i]
+            scores_single = scores_single[keep_idx_i]
 
-            # padding 0 at the end.
             num_proposal = proposals_single.size(0)
-            output[i,:,0] = i
-            output[i,:num_proposal,1:] = proposals_single
+            output[i, :, 0] = i
+            output[i, :num_proposal, 1:] = proposals_single
 
-        return output
+        return output, proposals
 
     def backward(self, top, propagate_down, bottom):
         """This layer does not propagate gradients."""

@@ -13,7 +13,7 @@ from collections import OrderedDict
 # from lib.roi_layers.roi_pooling_layer import ROIPoolingLayer
 from torchvision.ops import RoIPool as ROIPoolingLayer
 from torchvision.ops import RoIAlign as ROIAlignLayer
-from lib.rpn.proposal_target_layer import _ProposalTargetLayer
+from lib.rpn.proposal_target_layer import ProposalTargetLayer
 import time
 import pdb
 from models.smoothl1loss import _smooth_l1_loss
@@ -38,7 +38,18 @@ class pva_faster_rcnn(nn.Module):
 
         # define rpn
         self.RCNN_rpn = _RPN(self.dout_base_model, self.rpn_din)
-        self.RCNN_proposal_target = _ProposalTargetLayer(self.n_classes)
+        
+
+        mean = cfg.TRAIN.BBOX_NORMALIZE_MEANS
+        std = cfg.TRAIN.BBOX_NORMALIZE_STDS
+        inside_weight = cfg.TRAIN.BBOX_INSIDE_WEIGHTS
+        fraction = cfg.TRAIN.FG_FRACTION
+        batch_size = cfg.TRAIN.BATCH_SIZE
+        fg_thresh = cfg.TRAIN.FG_THRESH
+        bg_thresh_hi = cfg.TRAIN.BG_THRESH_HI
+        bg_thresh_lo = cfg.TRAIN.BG_THRESH_LO
+        self.proposal_target = ProposalTargetLayer(mean, std, inside_weight, batch_size, fraction, self.n_classes, fg_thresh, bg_thresh_hi, bg_thresh_lo)
+
 
         if cfg.POOLING_MODE == 'align':
             self.RCNN_roi_pool = ROIAlignLayer((cfg.POOLING_SIZE, cfg.POOLING_SIZE), 1.0 / cfg.FEAT_STRIDE[0], 2)
