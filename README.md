@@ -2,14 +2,12 @@ functions:
 pva-pytorch using pytorch-1.0
 add multi-scales image train
 
-`pytorch1.0`,`opencv-python`,`skimage`
+`pytorch1.0`, `torchvision>=0.4.0`
 
 
-CUDA_VISIBLE_DEVICES=1 python trainval_net.py --batch_size 8 \
+python trainval_net.py --batch_size 8 \
        --save_dir ./save_models \
-       --xml_path /data/datasets/defect_detection/voc/VOC2007/Annotations/ \
-       --img_path /data/datasets/defect_detection/voc/VOC2007/JPEGImages/ \
-       --network pva --classes 6
+       --train_path 'your own datasets path'
 
 
 pretrainedmode：链接：https://pan.baidu.com/s/1eLdUheV3FHmsyYs-MQLKBQ 提取码：psnw 
