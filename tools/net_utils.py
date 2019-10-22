@@ -8,7 +8,7 @@ import scipy
 import colorsys
 import random
 import torchvision.models as models
-from models.config import cfg
+#from models.config import cfg
 import cv2
 import pdb
 
