@@ -154,21 +154,21 @@ class AnchorTargetLayer(nn.Module):
 
         # outputs = []
 
-        labels = labels.reshape(batch_size, height, width, num_anchors).permute(0, 3, 1, 2)
-        labels = labels.reshape(batch_size, 1, num_anchors * height, width)
+        # labels = labels.reshape(batch_size, height, width, num_anchors)#.permute(0, 3, 1, 2)
+        # labels = labels.reshape(batch_size, 1, num_anchors * height, width)
         # outputs.append(labels)
 
-        bbox_targets = bbox_targets.reshape(batch_size, height, width, num_anchors*4).permute(0, 3, 1, 2)
+        # bbox_targets = bbox_targets.reshape(batch_size, height, width, num_anchors*4)#.permute(0, 3, 1, 2)
         # outputs.append(bbox_targets)
 
         anchors_count = bbox_inside_weights.size(1)
         bbox_inside_weights = bbox_inside_weights.reshape(batch_size, anchors_count, 1).expand(batch_size, anchors_count, 4)
-        bbox_inside_weights = bbox_inside_weights.reshape(batch_size, height, width, 4*num_anchors).permute(0, 3, 1, 2)
+        #bbox_inside_weights = bbox_inside_weights.reshape(batch_size, height, width, 4*num_anchors).permute(0, 3, 1, 2)
 
         # outputs.append(bbox_inside_weights)
 
         bbox_outside_weights = bbox_outside_weights.reshape(batch_size, anchors_count, 1).expand(batch_size, anchors_count, 4)
-        bbox_outside_weights = bbox_outside_weights.reshape(batch_size, height, width, 4*num_anchors).permute(0, 3, 1, 2)
+        #bbox_outside_weights = bbox_outside_weights.reshape(batch_size, height, width, 4*num_anchors).permute(0, 3, 1, 2)
         # outputs.append(bbox_outside_weights)
 
         return labels, bbox_targets, bbox_inside_weights, bbox_outside_weights

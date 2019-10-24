@@ -65,7 +65,7 @@ class RPNLoss(nn.Module):
                 self.get_targets(scores.detach(), anchors, self.num_anchors, im_info, gt_boxes)
 
         # compute classification loss
-        scores = scores.reshape(batch_size, 2, -1, w)
+        #scores = scores.reshape(batch_size, 2, -1, w)
         scores = scores.permute(0, 2, 3, 1).reshape(batch_size, -1, 2)
         rpn_label = rpn_label.reshape(batch_size, -1)
         rpn_keep = rpn_label.reshape(-1).ne(-1).nonzero().reshape(-1)
@@ -76,7 +76,8 @@ class RPNLoss(nn.Module):
 
         rpn_loss_cls = F.cross_entropy(scores, rpn_label)
 
-        rpn_loss_box = _smooth_l1_loss(bboxes_pred, bbox_targets, inside_weights, outside_weights, sigma=3, dim=[1, 2, 3])
+        bboxes_pred = bboxes_pred.permute(0, 2, 3, 1).reshape(batch_size, -1, 4)
+        rpn_loss_box = _smooth_l1_loss(bboxes_pred, bbox_targets, inside_weights, outside_weights, sigma=3, dim=[1, 2])
 
         return rpn_loss_cls, rpn_loss_box
 

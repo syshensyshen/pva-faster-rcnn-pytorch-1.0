@@ -5,7 +5,7 @@ val_path=None
 save_dir="save_models/"
 resume_model=''
 model_name='safe_0811_'
-lr=0.001
+lr=0.01
 epochs=100
 batch_size_per_gpu=6
 num_works=6
@@ -15,24 +15,25 @@ rename_class_list={},
 confidence_per_cls={'hook': [0.1], 'slide block': [0.1], 'together': [0.98]}
 save_model_interval=10
 models = dict(
-    structs = {'backbone': 'resnet', 'featurescompose': 'hypernet', 'rpn_tools': 'rpn_tools', 'rcnn_tools': 'rcnn_tools'},
+    structs = {'backbone': 'lite', 'featurescompose': 'hypernet', 'rpn_tools': 'rpn_tools', 'rcnn_tools': 'rcnn_tools'},
     backbone=dict(
         depth=50,
-        pretrained=True,
+        pretrained=False,
     ),
     featurescompose=dict(
         hyper_dim=2,
-        inchannels=[256, 512, 1024, 2048],
+        # inchannels=[256, 512, 1024, 2048],
+        inchannels=[48, 96, 192, 256],
         output_channels=256,
     ),
     rpn_tools=dict(
         stride=16,
-        scales=[8, 16, 32],
+        scales=[2, 4, 8, 16, 32],
         ratios=[0.5, 1.0, 2.0],
         inchannels=256,
         output_channels = 256,
-        pos_thresh=0.5,
-        neg_thresh=0.5,
+        pos_thresh=0.7,
+        neg_thresh=0.3,
         # min_pos_iou=0.5,
         fraction = 0.25,
         # total number of examples
@@ -44,7 +45,7 @@ models = dict(
         # number of top scoring boxes to keep after applying nms to rpn proposals
         post_nms = 6000,
         # proposal height and width both need to be greater than rpn_min_size (at orig image scale)
-        min_size = 8,
+        min_size = 16,
         # deprecated (outside weights)
         inside_weight = 1.0,
         clobber_positive=False,
