@@ -13,40 +13,8 @@ from .proposal_layer import ProposalLayer
 from .anchor_target_layer import AnchorTargetLayer
 from models.smoothl1loss import _smooth_l1_loss
 
-import numpy as np
-
 from ..backbone.basic_modules import kaiming_init, normal_init
-
-from models.rpn_tools.generate_anchors import generate_anchors
-
-
-class Anchor(object):
-
-    def __init__(self, stride, ratios, scales):
-
-        self.stride = stride
-        self.base_anchor = torch.from_numpy(generate_anchors(base_size=stride, scales=np.array(scales), ratios=np.array(ratios))).float()
-
-    def _meshgrid(self, x, y, row_major=True):
-        xx = x.repeat(len(y))
-        yy = y.view(-1, 1).repeat(1, len(x)).view(-1)
-        if row_major:
-            return xx, yy
-        else:
-            return yy, xx
-
-    def __call__(self, feat_height, feat_width, device):
-        base_anchors = self.base_anchor.to(device)
-        shift_x = torch.arange(0, feat_width, device=device) * self.stride
-        shift_y = torch.arange(0, feat_height, device=device) * self.stride
-        shift_xx, shift_yy = self._meshgrid(shift_x, shift_y)
-        shifts = torch.stack([shift_xx, shift_yy, shift_xx, shift_yy], dim=-1)
-        shifts = shifts.type_as(base_anchors)
-
-        all_anchors = base_anchors[None, :, :] + shifts[:, None, :]
-        all_anchors = all_anchors.view(-1, 4)
-
-        return all_anchors
+from .anchor_tools import Anchor
 
 
 class RPNLoss(nn.Module):
@@ -146,9 +114,9 @@ class RPNSingleModule(nn.Module):
         # get rpn offsets to the anchor boxes
         bboxes_pred = self.bbox_pred(rpn_conv1)
 
-        anchors = self.anchor(feat_height, feat_width, base_feat.device)
+        anchors = self.anchor.grid_anchors([feat_height, feat_width], self.feat_stride, base_feat.device)
 
-        rois, all_proposals = self.proposals(scores.detach(), bboxes_pred.detach(), anchors, self.num_anchors, im_info, self.pre_nms, self.post_nms, self.nms_thresh)
+        rois = self.proposals(scores.detach(), bboxes_pred.detach(), anchors, self.num_anchors, im_info, self.pre_nms, self.post_nms, self.nms_thresh)
 
         # generating training labels and build the rpn loss
         rpn_loss_cls = rpn_loss_box = 0.0

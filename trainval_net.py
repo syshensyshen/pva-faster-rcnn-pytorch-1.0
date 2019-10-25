@@ -31,7 +31,7 @@ def parse_args():
     parser.add_argument(
         '--base_config', default="config/base_detection_config.py", help='config')
     parser.add_argument(
-        '--config', default="config/det_whiteshow_config.py", help='config')
+        '--config', default="config/fpn_syshen.py", help='config')
 
     args = parser.parse_args()
 
@@ -125,7 +125,7 @@ def main():
         print("loading pretrained model: ", cfg.resume_model)
 
     if torch.cuda.is_available():
-        torch.backends.cudnn.benchmark = True
+        # torch.backends.cudnn.benchmark = True
         model = model.cuda()
         if gpu_nums > 1:
             model = nn.DataParallel(model)
@@ -157,7 +157,7 @@ def main():
                     continue
                 optimizer.zero_grad()
                 loss.backward()
-                # torch.nn.utils.clip_grad_norm_(model.parameters(), 10.0)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                 optimizer.step()
 
                 # epoch_loss.append(float(loss))
@@ -184,7 +184,7 @@ def main():
                     logs.write(output_str + '\n')
                     logs.close()
 
-                del rpn_loss_cls, rpn_loss_bbox, loss_bbox, loss_cls
+                # del rpn_loss_cls, rpn_loss_bbox, loss_bbox, loss_cls
             except Exception as e:
                 print('Epoch: {} | Iteration: {}/{} | Exception: {}'.format(epoch_num, iter_num, len(
                     dataset_train)//(cfg.batch_size_per_gpu * gpu_nums), e))

@@ -188,16 +188,16 @@ class PyramidFeatures(nn.Module):
         self.P5_1 = Conv2d(C5_size, feature_size, kernel_size=1, stride=1, padding=0)
         self.P5_2 = Conv2d(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
 
-        # self.P6_1 = Conv2d(C5_size, feature_size, kernel_size=3, stride=2, padding=1)
-        # self.P6_2 = Conv2d(feature_size, feature_size, kernel_size=1, stride=1, padding=0)
+        self.P6_1 = Conv2d(C5_size, feature_size, kernel_size=3, stride=2, padding=1)
+        self.P6_2 = Conv2d(feature_size, feature_size, kernel_size=1, stride=1, padding=0)
 
         initvars(self.modules())
 
     def forward(self, feats):
         C2, C3, C4, C5 = feats
 
-        # P6_x = self.P6_1(C5)
-        # P6_x = self.P6_2(P6_x)
+        P6_x = self.P6_1(C5)
+        P6_x = self.P6_2(P6_x)
 
         P5_x = self.P5_1(C5)
         P5_upsampled_x = F.interpolate(P5_x, scale_factor=2, mode="nearest")
@@ -217,16 +217,16 @@ class PyramidFeatures(nn.Module):
         P2_x = P2_x + P3_upsampled_x
         P2_x = self.P2_2(P2_x)
 
-        #return [P2_x, P3_x, P4_x, P5_x, P6_x]  # 1/4, 1/8, 1/16, 1/32, 1/64
-        return [P2_x, P3_x, P4_x, P5_x]  # 1/4, 1/8, 1/16, 1/32, 1/64
+        return [P2_x, P3_x, P4_x, P5_x, P6_x]  # 1/4, 1/8, 1/16, 1/32, 1/64
+        # return [P2_x, P3_x, P4_x, P5_x]  # 1/4, 1/8, 1/16, 1/32, 1/64
 
 
 
 class PyramidFeatures(nn.Module):
 
     def __init__(self, cfg):
-        C2_size, C3_size, C4_size, C5_size = cfg.model.network.hyper_inchannels
-        feature_size = cfg.model.network.rpn_cin
+        C2_size, C3_size, C4_size, C5_size = cfg.inchannels
+        feature_size = cfg.output_channels
         super(PyramidFeatures, self).__init__()
 
         self.P2_1 = Conv2d(C2_size, feature_size, kernel_size=1, stride=1, padding=0)
@@ -241,16 +241,16 @@ class PyramidFeatures(nn.Module):
         self.P5_1 = Conv2d(C5_size, feature_size, kernel_size=1, stride=1, padding=0)
         self.P5_2 = Conv2d(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
 
-        # self.P6_1 = Conv2d(C5_size, feature_size, kernel_size=3, stride=2, padding=1)
-        # self.P6_2 = Conv2d(feature_size, feature_size, kernel_size=1, stride=1, padding=0)
+        self.P6_1 = Conv2d(C5_size, feature_size, kernel_size=3, stride=2, padding=1)
+        self.P6_2 = Conv2d(feature_size, feature_size, kernel_size=1, stride=1, padding=0)
 
-        init_weights(self.modules())
+        # init_weights(self.modules())
 
     def forward(self, feats):
         C2, C3, C4, C5 = feats
 
-        # P6_x = self.P6_1(C5)
-        # P6_x = self.P6_2(P6_x)
+        P6_x = self.P6_1(C5)
+        P6_x = self.P6_2(P6_x)
 
         P5_x = self.P5_1(C5)
         P5_upsampled_x = F.interpolate(P5_x, scale_factor=2, mode="nearest")
@@ -270,8 +270,8 @@ class PyramidFeatures(nn.Module):
         P2_x = P2_x + P3_upsampled_x
         P2_x = self.P2_2(P2_x)
 
-        #return [P2_x, P3_x, P4_x, P5_x, P6_x]  # 1/4, 1/8, 1/16, 1/32, 1/64
-        return [P2_x, P3_x, P4_x, P5_x]  # 1/4, 1/8, 1/16, 1/32, 1/64
+        return [P2_x, P3_x, P4_x, P5_x, P6_x]  # 1/4, 1/8, 1/16, 1/32, 1/64
+        # return [P2_x, P3_x, P4_x, P5_x]  # 1/4, 1/8, 1/16, 1/32, 1/64
 
 
 def get_model(config):

@@ -510,7 +510,7 @@ def collater(data):
     heights = [int(s.shape[0]) for s in imgs]
     batch_size = len(imgs)
 
-    shapes = [shape for shape in range(640, 960, 32)]
+    shapes = [shape for shape in range(1088, 1440, 32)]
     min_side = shapes[random.randint(0, len(shapes) - 1)]
 
     width, height = get_target_size(min_side, (heights[0], widths[0]), 32, 2400)

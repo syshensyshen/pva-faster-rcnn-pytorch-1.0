@@ -5,20 +5,20 @@ val_path=None
 save_dir="save_models/"
 resume_model=''
 model_name='outward_'
-lr=0.01
+lr=0.001
 epochs=100
 batch_size_per_gpu=3
-num_works=3
+num_works=6
 class_list=(['other', 'scratch_deep', 'scratch_shallow', 'fracture'])
 defect_class_list=(['hook', 'slide block', 'together'])
 rename_class_list={},
 confidence_per_cls={'hook': [0.1], 'slide block': [0.1], 'together': [0.98]}
 save_model_interval=10
 models = dict(
-    structs = {'backbone': 'resnet', 'featurescompose': 'hypernet', 'rpn_tools': 'rpn_tools', 'rcnn_tools': 'rcnn_tools'},
+    structs = {'backbone': 'resnet', 'featurescompose': 'fpn', 'rpn_tools': 'fpn_tools', 'rcnn_tools': 'rcnn_tools'},
     backbone=dict(
         depth=50,
-        pretrained=False,
+        pretrained=True,
     ),
     featurescompose=dict(
         hyper_dim=0,
@@ -27,9 +27,10 @@ models = dict(
         output_channels=256,
     ),
     rpn_tools=dict(
-        stride=4,
-        scales=[1.2, 4, 8, 16, 32, 64, 128],
-        ratios=[0.0025, 0.05, 0.125, 0.28, 1.0, 3.5, 8.0, 20, 40],
+        use_sigmoid=False,
+        stride=[4, 8, 16, 32, 64],
+        scales=[4, 8, 16, 32],
+        ratios=[0.05, 0.125, 0.28, 1.0, 3.5, 8.0, 20],
         inchannels=256,
         output_channels = 256,
         pos_thresh=0.7,
@@ -41,9 +42,9 @@ models = dict(
         # nms threshold used on rpn proposals
         nms_thresh = 0.7,
         # number of top scoring boxes to keep before apply nms to rpn proposals
-        pre_nms = 12000,
+        pre_nms = 14400,
         # number of top scoring boxes to keep after applying nms to rpn proposals
-        post_nms = 6000,
+        post_nms = 3200,
         # proposal height and width both need to be greater than rpn_min_size (at orig image scale)
         min_size = 4,
         # deprecated (outside weights)
@@ -57,7 +58,7 @@ models = dict(
     rcnn_tools=dict(
         ohem_rcnn=False,
         class_list=class_list,
-        stride = 4,
+        stride = [4, 8, 16, 32],
         inchannels = 256,
         pooling_size = 7,
         rcnn_first = 512,
