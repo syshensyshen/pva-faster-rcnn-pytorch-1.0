@@ -2,32 +2,50 @@
 author: syshen
 date: 2019/01/28-01/30
 '''
+import os
+import sys
 import numpy as np
 import argparse
+import pprint
+import pdb
+import time
 from glob import glob
 import torch
+from torch.autograd import Variable
+import torch.nn as nn
+import torch.optim as optim
+import torchvision.transforms as transforms
 from lib.rpn.bbox_transform import clip_boxes
+from lib.datasets.pascal_voc import prepareBatchData
 import os
 from models.lite import lite_faster_rcnn
 from models.pvanet import pva_net
 # from models.config import cfg
-from datasets import get_target_size
-from datasets import im_list_to_blob
+from tools.net_utils import get_current_lr
+from collections import OrderedDict
+from tools.net_utils import adjust_learning_rate
+from lib.datasets.pascal_voc import get_target_size
+from lib.datasets.pascal_voc import im_list_to_blob
 from torchvision.ops import nms
 import cv2
-# from models.resnet import resnet
-from tools.pascal_voc import PascalVocWriter
+from models.resnet import resnet
+from tools.pascal_voc import write_bbndboxes, PascalVocWriter
 
 # added by Henson
-from config.config import Config, merge_config
+import xml.etree.ElementTree as ET
+from lib.config.config import Config, merge_config
+from torch.backends import cudnn
+from collections import defaultdict
+import shutil
+import random
 
 PIXEL_MEANS = np.array([[[0.485, 0.456, 0.406]]])
 PIXEL_STDS = np.array([[[0.229, 0.224, 0.225]]])
 
-thresh = 0.6  # 0.3
-nms_thresh = 0.5
+thresh = 0.01  # 0.3
+nms_thresh = 0.35
 
-class_list = ("__background__", 'hook', 'slide block', 'together')  # mta
+class_list = ("__background__", "SL", "YH", "FC", "QZ", "LH", "AJ")  # mta
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 
@@ -146,7 +164,7 @@ def im_detect(data, model, batch_size, std, mean, classes):
             bboxes_keep = pred_boxes[0,
                                      scores_over_thresh, index*4:(index+1)*4]
             if False:
-                filter_keep = _filter_boxes(bboxes_keep, 4)
+                filter_keep = _filter_boxes(bboxes_keep, 8)
                 cls_keep = cls_keep[filter_keep]
                 bboxes_keep = bboxes_keep[filter_keep, :]
             keep_idx_i = nms(bboxes_keep, cls_keep, nms_thresh)
@@ -173,8 +191,8 @@ def main():
     det_cfg = Config.fromfile(args.config)
     cfg = merge_config(base_cfg.model_cfg, det_cfg.model_cfg)
 
-    args.img_path = "/data/ssy/safe--0811/train/"  # args.img_path
-    save_dir = "./outputs/"  # args.save_dir
+    args.img_path = "/data0/datasets/det_whiteshow_defect/1/hard_sample"  # args.img_path
+    save_dir = "/data/zhangcc/data/tmp/test_results"  # args.save_dir
     args.classes = len(class_list)
 
     if not os.path.isdir(save_dir):
@@ -185,8 +203,8 @@ def main():
         model = lite_faster_rcnn(cfg, args.classes)
     elif 'pva' in args.network:
         model = pva_net(args.classes)
-    # elif 'resnet' in args.network:
-    #     model = resnet(args.classes, num_layers=101)
+    elif 'resnet' in args.network:
+        model = resnet(args.classes, num_layers=101)
 
     args.model = cfg.model
     checkpoint = torch.load(args.model)
@@ -196,7 +214,7 @@ def main():
 
     model = torch.nn.DataParallel(model).cuda()
     model.eval()
-    imgs = glob(os.path.join(args.img_path, "*.jpg"))
+    imgs = glob(os.path.join(args.img_path, "*.bmp"))
     print(args.img_path)
     batch_size = 1
     std = np.array(cfg.TRAIN.BBOX_NORMALIZE_STDS, dtype=np.float32)
